@@ -173,4 +173,14 @@ public class Matriz {
             return null;
         }
     }
+    public void pivoteoSimple(int k) {
+        if (datos[k][k] == 0.0) {
+            for (int i = k + 1; i < cantFilas; i++) {
+                if (datos[i][k] != 0.0) {
+                    interFilas(k, i);
+                    break; 
+                }
+            }
+        }
+    }
 }
