@@ -881,7 +881,7 @@ try {
             try {
                 resolverCholesky(variante, new Matriz(datosCholesky));
                 System.out.println("FALLO: No lanzó excepción.");
-            } catch (UnsupportedOperationException e) {
+            } catch (IllegalArgumentException e) {
                 System.out.println("FALLO ESPERADO (No ampliada): " + e.getClass().getSimpleName() + " - " + e.getMessage());
             } catch (Exception e) {
                 System.out.println("FALLO: Excepción incorrecta " + e.getClass().getSimpleName() + " - " + e.getMessage());

@@ -265,8 +265,9 @@ public class MetodosDirectosMatriz {
   // se guarda en el vector y, porque una matriz de (n+1) x n superaría MAX_DIMENSION con n = 100
   public static double[] CholeskySolucionL(Matriz Ab) {
     int n = Ab.getCantFilas();
-    Matriz A = separarA(Ab);
-    double[] b = separarB(Ab);
+    Matriz A = Ab.extraerA();
+    double[] b = Ab.extraerB();
+    validarSimetrica(A);
     validarSolucionUnica(Ab);
     Matriz L = new Matriz(n, n);
     double[] y = new double[n];
@@ -311,8 +312,9 @@ public class MetodosDirectosMatriz {
   // Cholesky A = U^T * U para resolver A * x = b: la columna b se procesa con la fila de U y queda como y
   public static double[] CholeskySolucionU(Matriz Ab) {
     int n = Ab.getCantFilas();
-    Matriz A = separarA(Ab);
-    double[] b = separarB(Ab);
+    Matriz A = Ab.extraerA();
+    double[] b = Ab.extraerB();
+    validarSimetrica(A);
     validarSolucionUnica(Ab);
     Matriz Uy = new Matriz(n, n + 1); // [U | y]
 
@@ -349,32 +351,10 @@ public class MetodosDirectosMatriz {
     }
   }
 
-  // Separa la parte A (n x n) de la ampliada [A | b], validando la forma y que A sea simétrica
-  private static Matriz separarA(Matriz Ab) {
-    int n = Ab.getCantFilas();
-    if (Ab.getCantColumnas() != n + 1) {
-      throw new UnsupportedOperationException("Error: Cholesky requiere la matriz ampliada [A | b] de n x (n+1).");
-    }
-    Matriz A = new Matriz(n, n);
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < n; j++) {
-        A.setElemento(i, j, Ab.getElemento(i, j));
-      }
-    }
+  private static void validarSimetrica(Matriz A) {
     if (!A.esSimetrica()) {
       throw new UnsupportedOperationException("Error: Cholesky requiere que A sea simétrica.");
     }
-    return A;
-  }
-
-  // Separa la columna b (la última) de la ampliada [A | b]
-  private static double[] separarB(Matriz Ab) {
-    int n = Ab.getCantFilas();
-    double[] b = new double[n];
-    for (int i = 0; i < n; i++) {
-      b[i] = Ab.getElemento(i, n);
-    }
-    return b;
   }
 
   // Cláusula de escape: si el radicando no es positivo, A no es definida positiva
