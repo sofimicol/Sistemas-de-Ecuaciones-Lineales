@@ -5,6 +5,9 @@ public class Matriz {
 
     public static final int MAX_DIMENSION = 100;
 
+    // Número de condición máximo para considerar una matriz bien condicionada
+    public static final double MAX_CONDICION = 50;
+
     private int cantFilas;
     private int cantColumnas;
     private double[][] datos;
@@ -121,6 +124,45 @@ public class Matriz {
         return this.cantColumnas == this.cantFilas + 1;
     }
 
+    public static Matriz identidad(int n) {
+        Matriz I = new Matriz(n, n);
+        for (int i = 0; i < n; i++) {
+            I.datos[i][i] = 1.0;
+        }
+        return I;
+    }
+
+    public Matriz copiar() {
+        return new Matriz(this.datos); // el constructor ya hace copiaProfunda
+    }
+
+    // Retorna una copia nueva A^T (columnas x filas), con T[j][i] = A[i][j]; esta matriz no se modifica
+    public Matriz transponer() {
+        Matriz T = new Matriz(this.cantColumnas, this.cantFilas);
+        for (int i = 0; i < this.cantFilas; i++) {
+            for (int j = 0; j < this.cantColumnas; j++) {
+                T.datos[j][i] = this.datos[i][j];
+            }
+        }
+        return T;
+    }
+
+    // Una matriz es simétrica si es cuadrada y A = A^T
+    public boolean esSimetrica() {
+        if (this.cantFilas != this.cantColumnas) {
+            return false;
+        }
+        Matriz T = this.transponer();
+        for (int i = 0; i < this.cantFilas; i++) {
+            for (int j = 0; j < this.cantColumnas; j++) {
+                if (Math.abs(this.datos[i][j] - T.datos[i][j]) > 1e-12) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
     private double[][] copiaProfunda(double[][] origen) {
         double[][] copia = new double[origen.length][origen[0].length];
         for (int i = 0; i < origen.length; i++) {
@@ -161,7 +203,7 @@ public class Matriz {
         return b;
     }
 
-    
+
     public void mostrarMatriz() {
         for(int i = 0; i < this.cantFilas; i++) {
             System.out.print("[ ");
@@ -171,15 +213,20 @@ public class Matriz {
             System.out.println("]");
         }
     }
-    
+
     public void interFilas(int fila1, int fila2) {
         if(fila1 != fila2) {
-            for (int j = 0; j < this.cantColumnas; j++) {
-                double aux = datos[fila1][j];
-                datos[fila1][j] = datos[fila2][j];
-                datos[fila2][j] = aux;
-            }
+            intercambiarFilas(fila1, fila2);
             System.out.println("-> Se intercambió la Fila " + fila1 + " con la Fila " + fila2);
+        }
+    }
+
+    // Igual que interFilas pero sin imprimir (para determinante e inversa)
+    private void intercambiarFilas(int fila1, int fila2) {
+        for (int j = 0; j < this.cantColumnas; j++) {
+            double aux = datos[fila1][j];
+            datos[fila1][j] = datos[fila2][j];
+            datos[fila2][j] = aux;
         }
     }
 
@@ -198,7 +245,7 @@ public class Matriz {
         }
         return sb.toString();
     }
-    
+
     public void interColumnas(int c1, int c2) {
         if (c1 != c2) {
             for (int i = 0; i < this.cantFilas; i++) {
@@ -209,8 +256,9 @@ public class Matriz {
             System.out.println("-> Se intercambió la Columna " + c1 + " con la Columna " + c2);
         }
     }
-    
-    public void pivoteoParcial(int k) {	
+
+    // Devuelve la fila con el mayor valor absoluto en la columna k (desde la fila k hacia abajo)
+    private int buscarFilaPivote(int k) {
         int mayFila = k;
         double maxValor = Math.abs(datos[k][k]);
 
@@ -221,11 +269,19 @@ public class Matriz {
                 mayFila = i;
             }
         }
+        return mayFila;
+    }
+
+    // Devuelve true si hubo intercambio de filas
+    public boolean pivoteoParcial(int k) {
+        int mayFila = buscarFilaPivote(k);
         if (mayFila != k) {
             interFilas(k, mayFila);
+            return true;
         }
+        return false;
     }
-    
+
     public int pivoteoTotal(int k) {
         int mayFila = k;
         int mayCol = k;
@@ -253,7 +309,7 @@ public class Matriz {
             return k;
         }
     }
-    
+
     public double[] sistDiagonal() {
         if (this.esAmpliada()) {
             double[] b = this.extraerB();
@@ -269,7 +325,7 @@ public class Matriz {
             throw new IllegalStateException("Error: El método requiere de una Matriz Ampliada para resolverse.");
         }
     }
-    
+
     public double[] sustRegresiva() {
         if (this.esAmpliada()) {
             double[] b = this.extraerB();
@@ -311,12 +367,135 @@ public class Matriz {
         }
     }
 
+    public double determinante() {
+        if (this.cantFilas != this.cantColumnas) {
+            throw new UnsupportedOperationException(
+                "Error: El determinante requiere una matriz cuadrada (n x n). " +
+                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
+        }
+
+        double det = 1.0;
+        Matriz M = this.copiar();
+        int n = M.cantFilas;
+
+        for (int k = 0; k < n; k++) {
+            // Cada intercambio de filas cambia el signo del determinante
+            int f = M.buscarFilaPivote(k);
+            if (f != k) {
+                M.intercambiarFilas(k, f);
+                det = -det;
+            }
+            double pivote = M.datos[k][k];
+            // Matriz singular: det = 0, no es un error
+            if (Math.abs(pivote) < 1e-12) {
+                return 0.0;
+            }
+            det *= pivote;
+            for (int i = k + 1; i < n; i++) {
+                double m = M.datos[i][k] / pivote;
+                for (int j = k; j < n; j++) {
+                    M.datos[i][j] = M.datos[i][j] - m * M.datos[k][j];
+                }
+            }
+        }
+        return det;
+    }
+
+    // Gauss-Jordan con diagonal unitaria sobre una identidad adjunta: al terminar, I = A^-1
+    public Matriz inversa() {
+        if (this.cantFilas != this.cantColumnas) {
+            throw new UnsupportedOperationException(
+                "Error: La inversa requiere una matriz cuadrada (n x n). " +
+                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
+        }
+
+        int n = this.cantFilas;
+        Matriz M = this.copiar();       // no modificamos la matriz original
+        Matriz I = Matriz.identidad(n); // matriz adjunta
+
+        for (int k = 0; k < n; k++) {
+            // Pivoteo solo si el pivote es nulo (mismo criterio que JordanSolucionDiagonalUnitaria)
+            if (Math.abs(M.datos[k][k]) < 1e-12) {
+                int f = M.buscarFilaPivote(k);
+                // El intercambio se aplica a las DOS matrices
+                M.intercambiarFilas(k, f);
+                I.intercambiarFilas(k, f);
+                if (Math.abs(M.datos[k][k]) < 1e-12) {
+                    throw new ArithmeticException(
+                        "Error: La matriz es singular (pivote nulo en fila " + k + "). No tiene inversa.");
+                }
+            }
+
+            // Normalizamos la fila k para que el pivote valga 1
+            double pivote = M.datos[k][k];
+            for (int j = 0; j < n; j++) {
+                M.datos[k][j] = M.datos[k][j] / pivote;
+                I.datos[k][j] = I.datos[k][j] / pivote;
+            }
+
+            // Eliminamos la columna k en el resto de las filas.
+            // En I recorremos todas las columnas: a la izquierda de k no hay ceros garantizados
+            for (int i = 0; i < n; i++) {
+                if (i != k) {
+                    double m = M.datos[i][k];
+                    for (int j = 0; j < n; j++) {
+                        M.datos[i][j] = M.datos[i][j] - m * M.datos[k][j];
+                        I.datos[i][j] = I.datos[i][j] - m * I.datos[k][j];
+                    }
+                }
+            }
+        }
+        return I;
+    }
+
+    // Norma Infinito: máximo de las sumas de los valores absolutos de cada fila
+    public double norma() {
+        if (this.cantFilas != this.cantColumnas) {
+            throw new UnsupportedOperationException(
+                "Error: La norma requiere una matriz cuadrada (n x n). " +
+                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
+        }
+
+        double maxSuma = 0.0;
+        for (int i = 0; i < this.cantFilas; i++) {
+            double sumaFila = 0.0;
+            for (int j = 0; j < this.cantColumnas; j++) {
+                sumaFila = sumaFila + Math.abs(datos[i][j]);
+            }
+            if (sumaFila > maxSuma) {
+                maxSuma = sumaFila;
+            }
+        }
+        return maxSuma;
+    }
+
+    // Número de condición: cond(A) = ||A|| * ||A^-1|| (con norma infinito)
+    public double condicion() {
+        if (this.cantFilas != this.cantColumnas) {
+            throw new UnsupportedOperationException(
+                "Error: El número de condición requiere una matriz cuadrada (n x n). " +
+                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
+        }
+
+        // Si A es singular, inversa() lanza ArithmeticException
+        return this.norma() * this.inversa().norma();
+    }
+
+    public boolean bienCondicionado() {
+        try {
+            return this.condicion() <= MAX_CONDICION;
+        } catch (ArithmeticException e) {
+            // Matriz singular: cond(A) es infinito, nunca está bien condicionada
+            return false;
+        }
+    }
+
     public void pivoteoSimple(int k) {
         if (datos[k][k] == 0.0) {
             for (int i = k + 1; i < cantFilas; i++) {
                 if (datos[i][k] != 0.0) {
                     interFilas(k, i);
-                    break; 
+                    break;
                 }
             }
         }
