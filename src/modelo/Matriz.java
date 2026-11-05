@@ -3,10 +3,8 @@ package modelo;
 public class Matriz {
     // Dimension máxima de la matriz (Consultar al profe y contarlo en reunion 4)
 
-    public static final int MAX_DIMENSION = 100;
-
     // Número de condición máximo para considerar una matriz bien condicionada
-    public static final double MAX_CONDICION = 50;
+    public static double MAX_CONDICION = 50;
 
     private int cantFilas;
     private int cantColumnas;
