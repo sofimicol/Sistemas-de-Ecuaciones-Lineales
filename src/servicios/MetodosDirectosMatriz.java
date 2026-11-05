@@ -365,6 +365,45 @@ public class MetodosDirectosMatriz {
     }
     return Math.sqrt(radicando);
   }
+    // Norma 1: ||x||_1 = suma de los valores absolutos
+public static double norma1Vector(double[] x) {
+    validarVector(x);
+    double suma = 0.0;
+    for (int i = 0; i < x.length; i++) {
+        suma += Math.abs(x[i]);
+    }
+    return suma;
+}
+
+// Norma 2 (euclídea): ||x||_2 = sqrt( suma de los cuadrados )
+public static double norma2Vector(double[] x) {
+    validarVector(x);
+    double sumaCuadrados = 0.0;
+    for (int i = 0; i < x.length; i++) {
+        sumaCuadrados += x[i] * x[i];
+    }
+    return Math.sqrt(sumaCuadrados);
+}
+
+// Norma infinita: ||x||_inf = máximo de los valores absolutos
+public static double normaInfinitoVector(double[] x) {
+    validarVector(x);
+    double maximo = 0.0;
+    for (int i = 0; i < x.length; i++) {
+        double abs = Math.abs(x[i]);
+        if (abs > maximo) {
+            maximo = abs;
+        }
+    }
+    return maximo;
+}
+
+// Validador compartido por las tres normas vectoriales
+private static void validarVector(double[] x) {
+    if (x == null || x.length == 0) {
+        throw new IllegalArgumentException("Error: El vector no puede ser nulo ni vacío.");
+    }
+}
 }
 
   
