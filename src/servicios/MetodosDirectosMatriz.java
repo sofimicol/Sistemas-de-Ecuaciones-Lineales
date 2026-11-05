@@ -44,6 +44,7 @@ public class MetodosDirectosMatriz {
     }
     
     public static double[] JordanSolucion(Matriz Ab, int n) {
+    validarSolucionUnica(Ab);
     double[] x = new double[n];
 
     for(int k = 0; k < n; k++) {
@@ -72,6 +73,7 @@ public class MetodosDirectosMatriz {
   }
 
   public static double[] JordanSolucionDiagonalUnitaria(Matriz Ab, int n) {
+    validarSolucionUnica(Ab);
     double[] x = new double[n];
 
     for(int k = 0; k < n; k++) {
@@ -183,6 +185,7 @@ public class MetodosDirectosMatriz {
 
   // Crout L1U sobre [A | b]: la columna b se procesa con la fila de U y queda como y (L1 * y = b)
   public static double[] CroutSolucionL1U(Matriz Ab) {
+    validarSolucionUnica(Ab);
     int n = Ab.getCantFilas();
     Matriz L1 = new Matriz(n, n);
     Matriz Uy = new Matriz(n, n + 1); // [U | y]
@@ -221,6 +224,7 @@ public class MetodosDirectosMatriz {
 
   // Crout LU1 sobre [A | b]: la columna b se procesa con la fila de U1 y queda como y (L * y = b)
   public static double[] CroutSolucionLU1(Matriz Ab) {
+    validarSolucionUnica(Ab);
     int n = Ab.getCantFilas();
     Matriz L = new Matriz(n, n);
     Matriz U1y = new Matriz(n, n + 1); // [U1 | y]
@@ -263,6 +267,7 @@ public class MetodosDirectosMatriz {
     int n = Ab.getCantFilas();
     Matriz A = separarA(Ab);
     double[] b = separarB(Ab);
+    validarSolucionUnica(Ab);
     Matriz L = new Matriz(n, n);
     double[] y = new double[n];
 
@@ -308,6 +313,7 @@ public class MetodosDirectosMatriz {
     int n = Ab.getCantFilas();
     Matriz A = separarA(Ab);
     double[] b = separarB(Ab);
+    validarSolucionUnica(Ab);
     Matriz Uy = new Matriz(n, n + 1); // [U | y]
 
     for (int k = 0; k < n; k++) {
@@ -333,6 +339,14 @@ public class MetodosDirectosMatriz {
     // Uy = [U | y] ya contiene y (solución de U^T * y = b), calculada en el bucle de U.
     // Retorna x, la solución de A * x = b, resolviendo U * x = y por sustitución regresiva
     return Uy.sustRegresiva();
+  }
+
+  // Regla de entrada de los métodos que resuelven A * x = b: si det(A) = 0 el sistema
+  // no tiene solución única (infinitas soluciones o ninguna)
+  private static void validarSolucionUnica(Matriz Ab) {
+    if (Math.abs(Ab.extraerA().determinante()) < 1e-12) {
+      throw new ArithmeticException("Error: det(A) = 0, el sistema no tiene solución única.");
+    }
   }
 
   // Separa la parte A (n x n) de la ampliada [A | b], validando la forma y que A sea simétrica

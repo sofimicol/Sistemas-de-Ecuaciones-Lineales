@@ -888,6 +888,31 @@ try {
             }
         }
 
+        // ---------------------------------------------------------
+        // TEST 19: Regla det(A) != 0 en los métodos que resuelven A * x = b
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 19: Regla det(A) != 0 ---");
+
+        // Simétrica y singular (fila 2 = 2 * fila 1), b compatible: infinitas soluciones
+        double[][] datosInfinitas = {
+            {1, 2, 3},
+            {2, 4, 6}
+        };
+        String[] metodos = {"Jordan", "JordanDiagonalUnitaria", "CroutL1U", "CroutLU1", "CholeskyL", "CholeskyU"};
+        for (String metodo : metodos) {
+            System.out.println("-- 19 Infinitas soluciones " + metodo + " --");
+            try {
+                resolverSistema(metodo, new Matriz(datosInfinitas));
+                System.out.println("FALLO: No lanzó excepción.");
+            } catch (ArithmeticException e) {
+                System.out.println(e.getMessage().contains("det(A)")
+                    ? "FALLO ESPERADO (det(A) = 0): " + e.getClass().getSimpleName() + " - " + e.getMessage()
+                    : "FALLO: No cortó por la regla de det(A) - " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("FALLO: Excepción incorrecta " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            }
+        }
+
         System.out.println("\n==================================================");
         System.out.println("   FIN DEL TESTEO");
         System.out.println("==================================================");
@@ -897,6 +922,18 @@ try {
         return variante.equals("L")
             ? MetodosDirectosMatriz.CholeskySolucionL(Ab)
             : MetodosDirectosMatriz.CholeskySolucionU(Ab);
+    }
+
+    private static double[] resolverSistema(String metodo, Matriz Ab) {
+        int n = Ab.getCantFilas();
+        switch (metodo) {
+            case "Jordan": return MetodosDirectosMatriz.JordanSolucion(Ab, n);
+            case "JordanDiagonalUnitaria": return MetodosDirectosMatriz.JordanSolucionDiagonalUnitaria(Ab, n);
+            case "CroutL1U": return MetodosDirectosMatriz.CroutSolucionL1U(Ab);
+            case "CroutLU1": return MetodosDirectosMatriz.CroutSolucionLU1(Ab);
+            case "CholeskyL": return MetodosDirectosMatriz.CholeskySolucionL(Ab);
+            default: return MetodosDirectosMatriz.CholeskySolucionU(Ab);
+        }
     }
 
     private static double[][] ampliar(double[][] A, double[] b) {
