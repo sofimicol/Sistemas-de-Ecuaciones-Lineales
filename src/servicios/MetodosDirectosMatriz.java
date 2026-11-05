@@ -365,8 +365,154 @@ public class MetodosDirectosMatriz {
     }
     return Math.sqrt(radicando);
   }
+    // ============================================================
+    // ESTRUCTURA DE DATOS PARA LA INTERFAZ GRÁFICA
+    // ============================================================
+    public static class ResultadoLU {
+        public Matriz L;
+        public Matriz U;
+        public boolean huboPermutacion;
 
+        public ResultadoLU(Matriz L, Matriz U, boolean huboPermutacion) {
+            this.L = L;
+            this.U = U;
+            this.huboPermutacion = huboPermutacion;
+        }
+    }
+    
+    public static double[] GaussPivoteoSimple(Matriz G) {
+        return GaussSolucion(G, 3);
+    }
+    
+    public static double[] GaussPivoteoParcial(Matriz G) {
+        return GaussSolucion(G, 1);
+    }
+    
+    public static double[] GaussPivoteoTotal(Matriz G) {
+        return GaussSolucion(G, 2);
+    }
+
+    // ============================================================
+    // MOTOR CENTRAL GAUSSIANO (Privado, no accesible por la UI)
+    // ============================================================
+
+    private static double[] GaussSolucion (Matriz G_original, int tipoPiv) {
+        Matriz G = G_original.copiar();
+        Matriz coeficientes = G.extraerA();
+        if (!coeficientes.esCuadrada()) {
+            throw new IllegalArgumentException("Error: La matriz de coeficientes no es cuadrada. Ingreso incorrecto."); 
+        }
+        int n = G.getCantFilas();
+        int colsTotales = G.getCantColumnas(); 
+        
+        // Vector para registrar posibles cambios de columnas
+        int[] ordenX = new int[n];
+        for (int i = 0; i < n; i++) {
+            ordenX[i] = i;
+        }
+        
+        for (int k = 0; k < n - 1; k++) {   
+            int colMovida = k;
+            if (tipoPiv == 1) {
+                G.pivoteoParcial(k);
+            } else if (tipoPiv == 2) {
+                colMovida = G.pivoteoTotal(k); 
+            } else if (tipoPiv == 3) {
+                G.pivoteoSimple(k);
+            }
+            
+            // Registramos el posible desorden de incógnitas 
+            if (colMovida != k) {
+                int temp = ordenX[k];
+                ordenX[k] = ordenX[colMovida];
+                ordenX[colMovida] = temp;
+            }            
+            
+            if (Math.abs(G.getElemento(k, k)) < 1e-12) {
+                throw new ArithmeticException("Error: Pivote nulo encontrado en la fila " + k + ".");
+            }
+            
+            for (int i = k + 1; i < n; i++) {
+                double m = G.getElemento(i, k) / G.getElemento(k, k);
+                G.setElemento(i, k, 0.0);
+                
+                for (int j = k + 1; j < colsTotales; j++) {
+                    double nuevoValor = G.getElemento(i, j) - (m * G.getElemento(k, j));
+                    G.setElemento(i, j, nuevoValor);
+                }
+            }
+        }
+        
+        // Reutilizamos el método nativo
+        double[] xParcial = G.sustRegresiva();
+
+        // Reordenamos el vector final basándonos en el registro
+        double[] xFinal = new double[n];
+        for (int i = 0; i < n; i++) {
+            xFinal[ordenX[i]] = xParcial[i];
+        }
+        return xFinal;
+    }
+    
+    public static ResultadoLU factorizar_x_gauss(Matriz A_original, int tipoPiv) {
+        // CUMPLIMIENTO DE LA BITÁCORA: Validación directa
+        if (!A_original.esCuadrada()) {
+            throw new IllegalArgumentException("Error: La factorización LU requiere una matriz de coeficientes cuadrada.");
+        }
+        if (tipoPiv == 2) {
+            throw new UnsupportedOperationException("Error: Factorización LU clásica no soporta pivoteo total (requeriría matriz Q de columnas).");
+        }
+
+        int n = A_original.getCantFilas();
+        Matriz L = Matriz.identidad(n);
+        Matriz U = A_original.copiar(); 
+        boolean permutacionDetectada = false;
+        
+        for (int k = 0; k < n - 1; k++) {
+            
+            if (tipoPiv != 0) {
+                int filaMayor = k;
+                double maxValor = Math.abs(U.getElemento(k, k));
+                
+                for (int i = k + 1; i < n; i++) {
+                    double valorActual = Math.abs(U.getElemento(i, k));
+                    if ((tipoPiv == 1 && valorActual > maxValor) || 
+                        (tipoPiv == 3 && maxValor < 1e-12 && valorActual > 0)) {
+                        maxValor = valorActual;
+                        filaMayor = i;
+                    }
+                }
+
+                if (filaMayor != k) {
+                    U.interFilas(k, filaMayor); 
+                    permutacionDetectada = true; 
+
+                    for (int j = 0; j < k; j++) {
+                        double temp = L.getElemento(k, j);
+                        L.setElemento(k, j, L.getElemento(filaMayor, j));
+                        L.setElemento(filaMayor, j, temp);
+                    }
+                }
+            }
+
+            if (Math.abs(U.getElemento(k, k)) < 1e-12) {
+                 throw new ArithmeticException("Error: Pivote nulo en fila " + k + ". La matriz es singular.");
+            }
+            
+            for (int i = k + 1; i < n; i++) {
+                double m = U.getElemento(i, k) / U.getElemento(k, k);
+                L.setElemento(i, k, m);
+                U.setElemento(i, k, 0.0);
+                
+                for (int j = k + 1; j < n; j++) {
+                    double nuevoValor = U.getElemento(i, j) - (m * U.getElemento(k, j));
+                    U.setElemento(i, j, nuevoValor);
+                }
+            }
+        }
+        return new ResultadoLU(L, U, permutacionDetectada);
+    }    
 }
-}
+
 
   
