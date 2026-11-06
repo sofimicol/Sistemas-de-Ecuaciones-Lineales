@@ -913,6 +913,107 @@ try {
             }
         }
 
+        // ==========================================================
+        // TEST 20: Módulo de Eliminación Gaussiana (Resolución)
+        // ==========================================================
+        System.out.println("\n==================================================");
+        System.out.println("   INICIANDO TESTEO QA - ELIMINACIÓN GAUSSIANA");
+        System.out.println("==================================================\n");
+
+        // ---------------------------------------------------------
+        // TEST 20a: Gauss - Pivoteo Simple con Cero en Diagonal
+        // ---------------------------------------------------------
+        System.out.println("--- TEST 20a: Gauss Pivoteo Simple (Cero en Diagonal) ---");
+        try {
+            // El pivote en [0][0] es 0. El Pivoteo Simple debe intercambiar la fila 0 por la 1.
+            Matriz amp20a = new Matriz(new double[][]{
+                {0, 2, 1, 4},
+                {1, 1, 1, 6},
+                {2, 1, 3, 10}
+            });
+            
+            double[] x20a = MetodosDirectosMatriz.GaussPivoteoSimple(amp20a);
+            System.out.println("Éxito. Solución: " + java.util.Arrays.toString(x20a)); // Esperado: [1.0, 1.0, 2.0]
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // ---------------------------------------------------------
+        // TEST 20b: Gauss - Pivoteo Parcial (Propagación de Errores)
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 20b: Gauss Pivoteo Parcial (Estabilidad Numérica) ---");
+        try {
+            // Un pivote muy pequeño (0.0001) causa explosión de error si no se pivotea.
+            // El pivoteo parcial debe mandar la Fila 2 a la Fila 1.
+            Matriz amp20b = new Matriz(new double[][]{
+                {0.0001, 1, 1},
+                {1, 1, 2}
+            });
+            
+            double[] x20b = MetodosDirectosMatriz.GaussPivoteoParcial(amp20b);
+            System.out.println("Éxito. Solución: " + java.util.Arrays.toString(x20b)); // Esperado cercano a [1.0, 1.0]
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // ---------------------------------------------------------
+        // TEST 20c: Gauss - Pivoteo Total (Rastreador de Incógnitas)
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 20c: Gauss Pivoteo Total (Rastreo de Columnas) ---");
+        try {
+            // En este sistema, el valor absoluto más grande está en la columna 2.
+            // El algoritmo DEBE intercambiar columnas y reordenar las variables internamente.
+            Matriz amp20c = new Matriz(new double[][]{
+                {1, 2, 10, 13},
+                {1, 5, 2, 8},
+                {2, 1, 1, 4}
+            });
+            
+            double[] x20c = MetodosDirectosMatriz.GaussPivoteoTotal(amp20c);
+            System.out.println("Éxito. Solución: " + java.util.Arrays.toString(x20c)); // Esperado: [1.0, 1.0, 1.0]
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // ---------------------------------------------------------
+        // TEST 20d: Excepción Defensiva - Matriz NO Ampliada
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 20d: Fallo Esperado (Falta vector B) ---");
+        try {
+            // El usuario olvida cargar la columna de términos independientes.
+            Matriz noAmp = new Matriz(new double[][]{
+                {1, 2},
+                {3, 4}
+            });
+            
+            double[] x20d = MetodosDirectosMatriz.GaussPivoteoParcial(noAmp);
+            System.out.println("FALLO: El algoritmo resolvió una matriz sin b: " + java.util.Arrays.toString(x20d));
+        } catch (IllegalArgumentException e) {
+            System.out.println("ÉXITO DEFENSIVO (Falta Vector b): " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("FALLO DE TIPO DE EXCEPCIÓN: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // ---------------------------------------------------------
+        // TEST 20e: Singularidad y Sistema sin Solución
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 20e: Fallo Esperado (Sistema Singular Algorítmico) ---");
+        try {
+            // Sistema singular oculto (Fila 2 = Fila 1 * 2)
+            Matriz ampSingular = new Matriz(new double[][]{
+                {1, 1, 1, 3},
+                {2, 2, 2, 6},
+                {0, 2, 1, 3}
+            });
+            
+            double[] x20e = MetodosDirectosMatriz.GaussPivoteoTotal(ampSingular);
+            System.out.println("FALLO: Resolvió un sistema sin solución única. Resultado: " + java.util.Arrays.toString(x20e));
+        } catch (ArithmeticException e) {
+            System.out.println("ÉXITO DEFENSIVO (Singularidad): " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("FALLO DE TIPO DE EXCEPCIÓN: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
         System.out.println("\n==================================================");
         System.out.println("   FIN DEL TESTEO");
         System.out.println("==================================================");
