@@ -123,7 +123,7 @@ public class MetodosIterativosMatriz {
         return x;
     }
 
-    // ==== Southwell ====
+// ==== Southwell (Relajación optimizado en memoria) ====
     public static double[] Relajacion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
@@ -131,7 +131,9 @@ public class MetodosIterativosMatriz {
         int n = A.getCantFilas();
 
         double[] x = x0.clone();
-        double[] r = calcularResiduo(A, x, b);
+        double[] r = new double[n]; // Instanciamos en memoria UNA SOLA VEZ
+        calcularResiduoInPlace(A, x, b, r);
+        
         int iter = 0;
         boolean convergio = Matriz.normaInfinitoVector(r) <= tolerancia;
 
@@ -146,8 +148,12 @@ public class MetodosIterativosMatriz {
                     m = i;
                 }
             }
+            
+            // Actualizamos solo la incógnita con mayor residuo
             x[m] = x[m] + r[m] / A.getElemento(m, m);
-            r = calcularResiduo(A, x, b);
+            
+            // Reciclamos el arreglo 'r' sobreescribiendo sus valores
+            calcularResiduoInPlace(A, x, b, r);
             convergio = Matriz.normaInfinitoVector(r) <= tolerancia;
         }
 
@@ -157,6 +163,17 @@ public class MetodosIterativosMatriz {
         return x;
     }
 
+    // ==== Residuo In-Place (Sin fugas de memoria) ====
+    private static void calcularResiduo(Matriz A, double[] x, double[] b, double[] r) {
+        int n = A.getCantFilas();
+        for (int i = 0; i < n; i++) {
+            double suma = 0.0;
+            for (int j = 0; j < n; j++) {
+                suma += A.getElemento(i, j) * x[j];
+            }
+            r[i] = b[i] - suma; // Se sobreescribe el espacio de memoria existente
+        }
+    }
     // ==== Chequeo Diagonal Dominante ====
     private static void verificarDiagonal(Matriz A) {
         int n = A.getCantFilas();
@@ -186,20 +203,7 @@ public class MetodosIterativosMatriz {
             System.out.println("ADVERTENCIA TEÓRICA: La matriz no es estrictamente diagonal dominante. La convergencia de Jacobi/Gauss-Seidel no está garantizada.");
         }
     }
-
-    // ==== Residuo ====
-    private static double[] calcularResiduo(Matriz A, double[] x, double[] b) {
-        int n = A.getCantFilas();
-        double[] r = new double[n];
-        for (int i = 0; i < n; i++) {
-            double suma = 0.0;
-            for (int j = 0; j < n; j++) {
-                suma += A.getElemento(i, j) * x[j];
-            }
-            r[i] = b[i] - suma;
-        }
-        return r;
-    }
+    
     // ==== Mejoramiento Iterativo ====
     public static double[] MejoramientoIterativo(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
         Matriz A = Ab.extraerA();
