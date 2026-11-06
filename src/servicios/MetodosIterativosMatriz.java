@@ -157,12 +157,33 @@ public class MetodosIterativosMatriz {
         return x;
     }
 
-    // ==== Chequeo mínimo: a_ii ≠ 0 ====
+    // ==== Chequeo Diagonal Dominante ====
     private static void verificarDiagonal(Matriz A) {
-        for (int i = 0; i < A.getCantFilas(); i++) {
-            if (Math.abs(A.getElemento(i, i)) < EPSILON) {
+        int n = A.getCantFilas();
+        boolean esDominante = true;
+        
+        for (int i = 0; i < n; i++) {
+            double a_ii = Math.abs(A.getElemento(i, i));
+            
+            // Chequeo informático vital: evitar división por cero
+            if (a_ii < EPSILON) {
                 throw new ArithmeticException("Error: a_ii = 0 en la fila " + i + ". División por cero.");
             }
+            
+            // Chequeo matemático: Diagonal Estrictamente Dominante
+            double sumaFila = 0.0;
+            for (int j = 0; j < n; j++) {
+                if (i != j) {
+                    sumaFila += Math.abs(A.getElemento(i, j));
+                }
+            }
+            if (a_ii <= sumaFila) {
+                esDominante = false;
+            }
+        }
+        
+        if (!esDominante) {
+            System.out.println("ADVERTENCIA TEÓRICA: La matriz no es estrictamente diagonal dominante. La convergencia de Jacobi/Gauss-Seidel no está garantizada.");
         }
     }
 
