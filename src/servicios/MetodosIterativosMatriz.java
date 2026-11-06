@@ -179,4 +179,43 @@ public class MetodosIterativosMatriz {
         }
         return r;
     }
+    // ==== Mejoramiento Iterativo ====
+    public static double[] MejoramientoIterativo(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        Matriz A = Ab.extraerA();
+        double[] b = Ab.extraerB();
+        int n = A.getCantFilas();
+        
+        double[] x = x0.clone();
+        double[] r = calcularResiduo(A, x, b);
+        int iter = 0;
+        
+        while (Matriz.normaInfinitoVector(r) > tolerancia && iter < maxIter) {
+            iter++;
+            
+            // Armamos la nueva matriz ampliada [A | r]
+            Matriz Ar = new Matriz(n, n + 1);
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n; j++) {
+                    Ar.setElemento(i, j, A.getElemento(i, j));
+                }
+                Ar.setElemento(i, n, r[i]);
+            }
+            
+            // Resolvemos Az = r usando Gauss con Pivoteo Parcial (ubicado en MetodosDirectosMatriz)
+            double[] z = MetodosDirectosMatriz.GaussPivoteoParcial(Ar);
+            
+            // Sumamos el factor de corrección: x = x + z
+            for (int i = 0; i < n; i++) {
+                x[i] = x[i] + z[i];
+            }
+            
+            // Recalculamos el residuo para la siguiente iteración
+            r = calcularResiduo(A, x, b);
+        }
+        
+        if (iter >= maxIter) {
+            System.out.println("Advertencia: Mejoramiento Iterativo no convergió en " + maxIter + " iteraciones.");
+        }
+        return x;
+    }
 }
