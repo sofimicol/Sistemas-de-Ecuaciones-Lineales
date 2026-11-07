@@ -123,7 +123,7 @@ public class MetodosIterativosMatriz {
         return x;
     }
 
-// ==== Southwell (Relajación optimizado en memoria) ====
+ // ==== Southwell (Relajación optimizado en memoria) ====
     public static double[] Relajacion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
@@ -132,7 +132,7 @@ public class MetodosIterativosMatriz {
 
         double[] x = x0.clone();
         double[] r = new double[n]; // Instanciamos en memoria UNA SOLA VEZ
-        calcularResiduoInPlace(A, x, b, r);
+        calcularResiduo(A, x, b, r);
         
         int iter = 0;
         boolean convergio = Matriz.normaInfinitoVector(r) <= tolerancia;
@@ -153,7 +153,7 @@ public class MetodosIterativosMatriz {
             x[m] = x[m] + r[m] / A.getElemento(m, m);
             
             // Reciclamos el arreglo 'r' sobreescribiendo sus valores
-            calcularResiduoInPlace(A, x, b, r);
+            calcularResiduo(A, x, b, r);
             convergio = Matriz.normaInfinitoVector(r) <= tolerancia;
         }
 
@@ -163,7 +163,7 @@ public class MetodosIterativosMatriz {
         return x;
     }
 
-    // ==== Residuo In-Place (Sin fugas de memoria) ====
+ // ==== Residuo (Sin fugas de memoria) ====
     private static void calcularResiduo(Matriz A, double[] x, double[] b, double[] r) {
         int n = A.getCantFilas();
         for (int i = 0; i < n; i++) {
@@ -174,6 +174,7 @@ public class MetodosIterativosMatriz {
             r[i] = b[i] - suma; // Se sobreescribe el espacio de memoria existente
         }
     }
+    
     // ==== Chequeo Diagonal Dominante ====
     private static void verificarDiagonal(Matriz A) {
         int n = A.getCantFilas();
@@ -204,14 +205,17 @@ public class MetodosIterativosMatriz {
         }
     }
     
-    // ==== Mejoramiento Iterativo ====
+ // ==== Mejoramiento Iterativo ====
     public static double[] MejoramientoIterativo(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
         Matriz A = Ab.extraerA();
         double[] b = Ab.extraerB();
         int n = A.getCantFilas();
         
         double[] x = x0.clone();
-        double[] r = calcularResiduo(A, x, b);
+        double[] r = new double[n];
+        
+        // CORRECCIÓN: Usamos el método optimizado que no devuelve nada, sino que modifica 'r'
+        calcularResiduo(A, x, b, r); 
         int iter = 0;
         
         while (Matriz.normaInfinitoVector(r) > tolerancia && iter < maxIter) {
@@ -234,8 +238,8 @@ public class MetodosIterativosMatriz {
                 x[i] = x[i] + z[i];
             }
             
-            // Recalculamos el residuo para la siguiente iteración
-            r = calcularResiduo(A, x, b);
+            // Recalculamos el residuo para la siguiente iteración reutilizando el arreglo 'r'
+            calcularResiduo(A, x, b, r);
         }
         
         if (iter >= maxIter) {
