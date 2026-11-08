@@ -1,5 +1,9 @@
 package vista;
 
+import javafx.stage.FileChooser;
+import java.io.File;
+import java.nio.file.Files;
+import java.util.Scanner;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
@@ -132,7 +136,8 @@ public class AppGUI extends Application {
             try {
                 Matriz matrizA = leerMatrizDesdeInterfaz().extraerA();
                 MetodosDirectosMatriz.ResultadoLU res = MetodosDirectosMatriz.factorizar_x_gauss(matrizA, 1);
-                animarDobleMatriz(res.L, res.U, "L", "U", "Factorización LU", res.huboPermutacion);
+                // Agregamos 'null' como último parámetro porque aquí no hay vector solución
+                animarDobleMatriz(res.L, res.U, "L", "U", "Factorización LU", res.huboPermutacion, null);
             } catch (Exception ex) {
                 mostrarError("Error Matemático", ex.getMessage());
             }
@@ -200,8 +205,17 @@ public class AppGUI extends Application {
             setMetodoActivo(null);
             limpiarPantalla();
         });
+        
+        // --- NUEVO: Botón Importar TXT ---
+        Button btnImportar = crearBotonLimpiar("Importar TXT");
+        btnImportar.setOnAction(e -> cargarMatrizDesdeTXT(stage));
 
-        barraControles.getChildren().addAll(lblTamanio, spinnerN, btnRandom, btnLimpiar);
+        // Región flexible para empujar el botón Importar a la derecha
+        Region espaciadorBarra = new Region();
+        HBox.setHgrow(espaciadorBarra, Priority.ALWAYS);
+
+        // Ensamblaje de la barra superior
+        barraControles.getChildren().addAll(lblTamanio, spinnerN, btnRandom, btnLimpiar, espaciadorBarra, btnImportar);
 
         // ==========================================
         // 3. CONTENIDO CENTRAL
@@ -258,14 +272,16 @@ public class AppGUI extends Application {
 
         generarCuadricula();
 
+        // --- ENSAMBLAJE APILADO HACIA ABAJO (El clásico centrado) ---
         contenidoGlobal.getChildren().addAll(
             lblMetodoActivo,
             tituloMatriz,
             lblAlertaIngreso,
-            envolturaMatriz,
-            contenedorResultadosVisuales,
-            panelResultado
+            envolturaMatriz,       // 1. La matriz siempre centrada arriba
+            contenedorResultadosVisuales, // 2. Las animaciones L y U o los Pivoteos al medio
+            panelResultado         // 3. El cartel de resultados siempre abajo
         );
+
 
         // ==========================================
         // 4. ENSAMBLAJE Y SCROLL
@@ -596,11 +612,24 @@ public class AppGUI extends Application {
         ft.play();
     }
 
-    private void mostrarExito(String titulo, String detalle) {
+   private void mostrarExito(String titulo, String detalle, boolean esVectorX) {
         panelResultado.setStyle("-fx-background-color: " + Paleta.EXITO_FONDO + "; -fx-border-color: " + Paleta.EXITO_BORDE + "; -fx-border-radius: 10; -fx-background-radius: 10; -fx-border-width: 1;");
         lblEstado.setTextFill(Paleta.color(Paleta.EXITO_TEXTO));
         lblEstado.setText("✔ " + titulo);
         lblDetalle.setTextFill(Paleta.color(Paleta.TEXTO_PRINCIPAL));
+        
+        if (esVectorX) {
+            // Reemplaza el separador por saltos de línea para listar x1, x2, x3 en columna
+            detalle = detalle.replace("   |   ", "\n");
+            // Centra el texto de la columna para que se vea elegante en la parte inferior
+            lblDetalle.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        } else {
+            lblDetalle.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        }
+        
+        // Hacemos que el panel ocupe un ancho generoso siempre para mantener la simetría central
+        panelResultado.setMaxWidth(600); 
+        
         lblDetalle.setText(detalle);
         panelResultado.setVisible(true);
         animarAparicion(panelResultado);
@@ -663,13 +692,18 @@ public class AppGUI extends Application {
                 mathError = ex;
             }
 
-            boolean animar = (nLocal <= 5 && tipoPivoteo != 2);
+            boolean animar = (nLocal <= 5);
             if (animar) {
-                animarGaussEliminacion(matrizAmp, tipoPivoteo, solucion, mathError);
+                // AQUÍ DERIVAMOS A LA ANIMACIÓN CORRECTA
+                if (tipoPivoteo == 2) {
+                    animarGaussTotal(matrizAmp, solucion, mathError);
+                } else {
+                    animarGaussParcialSimple(matrizAmp, tipoPivoteo, solucion, mathError);
+                }
             } else if (mathError != null) {
                 mostrarError("Error Matemático", mathError.getMessage());
             } else {
-                mostrarExito("Sistema Resuelto (Gauss)", formatSolucion(solucion));
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
             }
         } catch (NumberFormatException ex) {
             mostrarError("Error de Ingreso", "Asegúrese de ingresar solo números.");
@@ -677,15 +711,203 @@ public class AppGUI extends Application {
             mostrarError("Error Matemático", ex.getMessage());
         }
     }
+    // ==============================================================
+    // ANIMACIÓN EXCLUSIVA PARA PIVOTEO TOTAL
+    // ==============================================================
+    private void animarGaussTotal(Matriz original, double[] solucion, Exception mathError) {
+        int nLocal = original.getCantFilas();
+        int cols = nLocal + 1;
 
-    private void animarGaussEliminacion(Matriz original, int tipoPivoteo,
-                                         double[] solucion, Exception mathError) {
+        final String ESTILO_COL_VERDE_AGUA = String.format(
+            "-fx-background-color: %s; -fx-border-color: %s; -fx-border-width: 2; -fx-background-radius: 6; -fx-text-fill: %s; -fx-font-weight: bold;",
+            Paleta.CELDA_L_BG, Paleta.CELDA_L_BORDE, Paleta.CELDA_L_TEXTO
+        );
+
+        List<double[][]> snapshots  = new ArrayList<>();
+        List<String>     labels     = new ArrayList<>();
+        List<Integer>    pivotRows1 = new ArrayList<>();
+        List<Integer>    pivotRows2 = new ArrayList<>();
+        List<Integer>    pivotCols1 = new ArrayList<>();
+        List<Integer>    pivotCols2 = new ArrayList<>();
+
+        double[][] sim = new double[nLocal][cols];
+        for (int i = 0; i < nLocal; i++) {
+            for (int j = 0; j < cols; j++) {
+                sim[i][j] = original.getElemento(i, j);
+            }
+        }
+
+        snapshots.add(copiar(sim));
+        labels.add("Matriz ampliada inicial");
+        pivotRows1.add(-1); pivotRows2.add(-1);
+        pivotCols1.add(-1); pivotCols2.add(-1);
+
+        for (int k = 0; k < nLocal - 1; k++) {
+            int filaMayor = k;
+            int colMayor = k;
+            double maxValor = Math.abs(sim[k][k]);
+
+            for (int i = k; i < nLocal; i++) {
+                for (int j = k; j < nLocal; j++) {
+                    if (Math.abs(sim[i][j]) > maxValor) {
+                        maxValor = Math.abs(sim[i][j]);
+                        filaMayor = i;
+                        colMayor = j;
+                    }
+                }
+            }
+
+            if (filaMayor != k) {
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": filas seleccionadas F" + (k + 1) + " ↔ F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor);
+                pivotCols1.add(-1); pivotCols2.add(-1);
+
+                for (int j = 0; j < cols; j++) {
+                    double tmp = sim[k][j];
+                    sim[k][j] = sim[filaMayor][j];
+                    sim[filaMayor][j] = tmp;
+                }
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": intercambio F" + (k + 1) + " ↔ F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor);
+                pivotCols1.add(-1); pivotCols2.add(-1);
+            }
+
+            if (colMayor != k) {
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": columnas seleccionadas C" + (k + 1) + " ↔ C" + (colMayor + 1));
+                pivotRows1.add(-1); pivotRows2.add(-1);
+                pivotCols1.add(k); pivotCols2.add(colMayor);
+
+                for (int i = 0; i < nLocal; i++) {
+                    double tmp = sim[i][k];
+                    sim[i][k] = sim[i][colMayor];
+                    sim[i][colMayor] = tmp;
+                }
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": intercambio C" + (k + 1) + " ↔ C" + (colMayor + 1));
+                pivotRows1.add(-1); pivotRows2.add(-1);
+                pivotCols1.add(k); pivotCols2.add(colMayor);
+            }
+
+            if (Math.abs(sim[k][k]) > 1e-12) {
+                for (int i = k + 1; i < nLocal; i++) {
+                    double m = sim[i][k] / sim[k][k];
+                    for (int j = k; j < cols; j++) {
+                        sim[i][j] -= m * sim[k][j];
+                    }
+                }
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": eliminación bajo pivote F" + (k + 1));
+                pivotRows1.add(-1); pivotRows2.add(-1);
+                pivotCols1.add(-1); pivotCols2.add(-1);
+            }
+        }
+
+        GridPane gridSim = new GridPane();
+        gridSim.setAlignment(Pos.CENTER);
+        gridSim.setHgap(4);
+        gridSim.setVgap(4);
+
+        TextField[][] celdas = new TextField[nLocal][cols];
+        for (int i = 0; i < nLocal; i++) {
+            for (int j = 0; j < cols; j++) {
+                celdas[i][j] = crearCeldaResultados();
+                celdas[i][j].setText(String.format("%.2f", snapshots.get(0)[i][j]));
+                if (j == cols - 1) celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                gridSim.add(celdas[i][j], j, i);
+            }
+        }
+
+        Label lblPaso = new Label(labels.get(0));
+        lblPaso.setTextFill(Paleta.color(Paleta.TEXTO_SECUNDARIO));
+        lblPaso.setFont(Font.font(FUENTE_UI, FontWeight.BOLD, 14));
+
+        HBox envoltura = envolverEnParentesis(gridSim);
+        VBox bloqueVisual = new VBox(10, lblPaso, envoltura);
+        bloqueVisual.setAlignment(Pos.CENTER);
+
+        contenedorResultadosVisuales.getChildren().add(bloqueVisual);
+        animarAparicion(bloqueVisual);
+
+        Timeline timeline = new Timeline();
+        double stepDelay = 0.7;
+
+        for (int s = 1; s < snapshots.size(); s++) {
+            final double[][] snap = snapshots.get(s);
+            final String lbl = labels.get(s);
+            final int pRow1 = pivotRows1.get(s);
+            final int pRow2 = pivotRows2.get(s);
+            final int pCol1 = pivotCols1.get(s);
+            final int pCol2 = pivotCols2.get(s);
+
+            KeyFrame frame = new KeyFrame(Duration.seconds(stepDelay * s), e -> {
+                lblPaso.setText(lbl);
+                for (int i = 0; i < nLocal; i++) {
+                    for (int j = 0; j < cols; j++) {
+                        celdas[i][j].setText(String.format("%.2f", snap[i][j]));
+
+                        if (pRow1 != -1 && pRow2 != -1) {
+                            if (i == pRow1 || i == pRow2) {
+                                celdas[i][j].setStyle(ESTILO_PIVOTE);
+                            } else if (j == cols - 1) {
+                                celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                            } else {
+                                celdas[i][j].setStyle(ESTILO_NORMAL);
+                            }
+                        } else if (pCol1 != -1 && pCol2 != -1) {
+                            if (j == pCol1 || j == pCol2) {
+                                celdas[i][j].setStyle(ESTILO_COL_VERDE_AGUA);
+                            } else if (j == cols - 1) {
+                                celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                            } else {
+                                celdas[i][j].setStyle(ESTILO_NORMAL);
+                            }
+                        } else {
+                            if (j == cols - 1) {
+                                celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                            } else {
+                                celdas[i][j].setStyle(ESTILO_NORMAL);
+                            }
+                        }
+                    }
+                }
+            });
+            timeline.getKeyFrames().add(frame);
+        }
+
+        double finalDelay = stepDelay * snapshots.size();
+        KeyFrame fin = new KeyFrame(Duration.seconds(finalDelay), e -> {
+            lblPaso.setText("Triangulación finalizada");
+            for (int i = 0; i < nLocal; i++) {
+                for (int j = 0; j < cols; j++) {
+                    celdas[i][j].setStyle(j == cols - 1 ? ESTILO_VECTOR_B : ESTILO_NORMAL);
+                }
+            }
+            if (mathError != null) {
+                mostrarError("Error Matemático", mathError.getMessage());
+            } else {
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
+            }
+        });
+        timeline.getKeyFrames().add(fin);
+        timeline.play();
+    }
+    
+ // ==============================================================
+    // ANIMACIÓN EXCLUSIVA PARA PIVOTEO PARCIAL Y SIMPLE
+    // ==============================================================
+    private void animarGaussParcialSimple(Matriz original, int tipoPivoteo, double[] solucion, Exception mathError) {
         int nLocal = original.getCantFilas();
         int cols = nLocal + 1;
 
         List<double[][]> snapshots  = new ArrayList<>();
         List<String>     labels     = new ArrayList<>();
-        List<Integer>    pivotRows  = new ArrayList<>();
+        
+        List<Integer>    pivotRows1 = new ArrayList<>();
+        List<Integer>    pivotRows2 = new ArrayList<>();
+        List<Integer>    columnaVerde = new ArrayList<>(); // Para pintar la columna del pivote
 
         double[][] sim = new double[nLocal][cols];
         for (int i = 0; i < nLocal; i++)
@@ -694,43 +916,57 @@ public class AppGUI extends Application {
 
         snapshots.add(copiar(sim));
         labels.add("Matriz ampliada inicial");
-        pivotRows.add(-1);
+        pivotRows1.add(-1); pivotRows2.add(-1); columnaVerde.add(-1);
 
         for (int k = 0; k < nLocal - 1; k++) {
             int filaMayor = k;
             double maxValor = Math.abs(sim[k][k]);
+            
+            // Detección de Pivote (Solo en la columna k)
             for (int i = k + 1; i < nLocal; i++) {
                 double va = Math.abs(sim[i][k]);
                 if ((tipoPivoteo == 1 && va > maxValor) ||
-                    (tipoPivoteo == 3 && maxValor < 1e-12 && va > 0)) {
+                    (tipoPivoteo == 3 && maxValor < 1e-12 && va > 1e-12)) {
                     maxValor = va;
                     filaMayor = i;
                 }
             }
 
+            // Intercambio de Filas (Dos fotogramas con color)
             if (filaMayor != k) {
+                // Fotograma A: Resaltar ANTES de mover
+                snapshots.add(copiar(sim));
+                labels.add("Pivoteo: Filas a intercambiar F" + (k + 1) + " y F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor); columnaVerde.add(k);
+
+                // Mover los números
                 for (int j = 0; j < cols; j++) {
                     double tmp = sim[k][j];
                     sim[k][j] = sim[filaMayor][j];
                     sim[filaMayor][j] = tmp;
                 }
+                
+                // Fotograma B: Resaltar DESPUÉS de mover
                 snapshots.add(copiar(sim));
-                labels.add("Paso " + (k + 1) + ": intercambio F" + (k + 1) + " ↔ F" + (filaMayor + 1));
-                pivotRows.add(k);
+                labels.add("Pivoteo: Intercambio F" + (k + 1) + " ↔ F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor); columnaVerde.add(k);
             }
 
+            // Eliminación Gaussiana
             if (Math.abs(sim[k][k]) > 1e-12) {
                 for (int i = k + 1; i < nLocal; i++) {
                     double m = sim[i][k] / sim[k][k];
-                    for (int j = k; j < cols; j++)
+                    for (int j = k; j < cols; j++) {
                         sim[i][j] -= m * sim[k][j];
+                    }
                 }
                 snapshots.add(copiar(sim));
                 labels.add("Paso " + (k + 1) + ": eliminación bajo pivote F" + (k + 1));
-                pivotRows.add(k);
+                pivotRows1.add(-1); pivotRows2.add(-1); columnaVerde.add(-1);
             }
         }
 
+        // --- RENDERIZADO VISUAL ---
         GridPane gridSim = new GridPane();
         gridSim.setAlignment(Pos.CENTER);
         gridSim.setHgap(4);
@@ -757,21 +993,26 @@ public class AppGUI extends Application {
         animarAparicion(bloqueVisual);
 
         Timeline timeline = new Timeline();
-        double stepDelay = 0.8;
+        double stepDelay = 0.7;
 
         for (int s = 1; s < snapshots.size(); s++) {
-            final int idx = s;
             final double[][] snap = snapshots.get(s);
             final String lbl = labels.get(s);
-            final int pivotRow = pivotRows.get(s);
+            final int pRow1 = pivotRows1.get(s);
+            final int pRow2 = pivotRows2.get(s);
+            final int pCol = columnaVerde.get(s);
 
             KeyFrame frame = new KeyFrame(Duration.seconds(stepDelay * s), e -> {
                 lblPaso.setText(lbl);
                 for (int i = 0; i < nLocal; i++) {
                     for (int j = 0; j < cols; j++) {
                         celdas[i][j].setText(String.format("%.2f", snap[i][j]));
-                        if (i == pivotRow) {
-                            celdas[i][j].setStyle(ESTILO_PIVOTE);
+
+                        // Regla de color estricta y simplificada
+                        if (pRow1 != -1 && (i == pRow1 || i == pRow2)) {
+                            celdas[i][j].setStyle(ESTILO_PIVOTE); // Fila en amarillo
+                        } else if (pCol != -1 && j == pCol) {
+                            celdas[i][j].setStyle("-fx-background-color: #e8f6f3; -fx-border-color: #1abc9c; -fx-background-radius: 6; -fx-text-fill: #16a085; -fx-font-weight: bold;"); // Columna en verde
                         } else if (j == cols - 1) {
                             celdas[i][j].setStyle(ESTILO_VECTOR_B);
                         } else {
@@ -784,14 +1025,17 @@ public class AppGUI extends Application {
         }
 
         double finalDelay = stepDelay * snapshots.size();
-        final double[] finalSol = solucion;
-        final Exception finalError = mathError;
         KeyFrame fin = new KeyFrame(Duration.seconds(finalDelay), e -> {
-            lblPaso.setText("Proceso finalizado");
-            if (finalError != null) {
-                mostrarError("Error Matemático", finalError.getMessage());
+            lblPaso.setText("Triangulación finalizada");
+            for (int i = 0; i < nLocal; i++) {
+                for (int j = 0; j < cols; j++) {
+                    celdas[i][j].setStyle(j == cols - 1 ? ESTILO_VECTOR_B : ESTILO_NORMAL);
+                }
+            }
+            if (mathError != null) {
+                mostrarError("Error Matemático", mathError.getMessage());
             } else {
-                mostrarExito("Sistema Resuelto (Gauss)", formatSolucion(finalSol));
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
             }
         });
         timeline.getKeyFrames().add(fin);
@@ -809,7 +1053,7 @@ public class AppGUI extends Application {
                 sb.append("x").append(i+1).append(" = ").append(String.format("%.4f", solucion[i]));
                 if (i < solucion.length - 1) sb.append("   |   ");
             }
-            mostrarExito("Gauss-Jordan", sb.toString() + "\nDiagonal reducida a la identidad.");
+            mostrarExito("Gauss-Jordan", sb.toString(), true);
         } catch (Exception ex) {
             mostrarError("Error Matemático", ex.getMessage());
         }
@@ -819,13 +1063,19 @@ public class AppGUI extends Application {
         setMetodoActivo(esL1U ? "Crout · L1 · U" : "Crout · L · U1");
         limpiarPantalla();
         try {
-            Matriz matrizA = leerMatrizDesdeInterfaz().extraerA();
+            Matriz matrizAmp = leerMatrizDesdeInterfaz();
+            Matriz matrizA = matrizAmp.extraerA();
+            
+            // 1. Calculamos la solución matemática (vector x)
+            double[] solucion = esL1U ? MetodosDirectosMatriz.CroutSolucionL1U(matrizAmp) : MetodosDirectosMatriz.CroutSolucionLU1(matrizAmp);
+            
+            // 2. Extraemos las matrices y enviamos la solución a la animación
             if (esL1U) {
                 Matriz[] res = MetodosDirectosMatriz.factorizarCroutL1U(matrizA);
-                animarDobleMatriz(res[0], res[1], "L1", "U", "Crout (L1 · U)", false);
+                animarDobleMatriz(res[0], res[1], "L1", "U", "Crout (L1 · U)", false, solucion);
             } else {
                 Matriz[] res = MetodosDirectosMatriz.factorizarCroutLU1(matrizA);
-                animarDobleMatriz(res[0], res[1], "L", "U1", "Crout (L · U1)", false);
+                animarDobleMatriz(res[0], res[1], "L", "U1", "Crout (L · U1)", false, solucion);
             }
         } catch (Exception ex) {
             mostrarError("Error Matemático", ex.getMessage());
@@ -838,12 +1088,9 @@ public class AppGUI extends Application {
         try {
             Matriz matrizAmp = leerMatrizDesdeInterfaz();
             double[] solucion = esL ? MetodosDirectosMatriz.CholeskySolucionL(matrizAmp) : MetodosDirectosMatriz.CholeskySolucionU(matrizAmp);
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < solucion.length; i++) {
-                sb.append("x").append(i+1).append(" = ").append(String.format("%.4f", solucion[i]));
-                if (i < solucion.length - 1) sb.append("   |   ");
-            }
-            mostrarExito(esL ? "Cholesky (L · Lᵀ)" : "Cholesky (Uᵀ · U)", sb.toString());
+            
+            // Usamos 'true' para forzar que el resultado salga compacto en el panel lateral
+            mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
         } catch (Exception ex) {
             mostrarError("Error de Cholesky", ex.getMessage());
         }
@@ -946,14 +1193,14 @@ public class AppGUI extends Application {
                 sb.append("x").append(i+1).append(" = ").append(String.format("%.6f", solucion[i]));
                 if (i < solucion.length - 1) sb.append("   |   ");
             }
-            mostrarExito(titulo, sb.toString());
+            mostrarExito(titulo, sb.toString(), true);
 
         } catch (Exception ex) {
             mostrarError("Error Matemático", ex.getMessage());
         }
     }
 
-    private void animarDobleMatriz(Matriz M1, Matriz M2, String nom1, String nom2, String nombreMetodo, boolean huboPermutacion) {
+    private void animarDobleMatriz(Matriz M1, Matriz M2, String nom1, String nom2, String nombreMetodo, boolean huboPermutacion, double[] solucion) {
         GridPane gridCopia = new GridPane(); gridCopia.setAlignment(Pos.CENTER); gridCopia.setHgap(4); gridCopia.setVgap(4);
         GridPane gridM1 = new GridPane(); gridM1.setAlignment(Pos.CENTER); gridM1.setHgap(4); gridM1.setVgap(4);
         GridPane gridM2 = new GridPane(); gridM2.setAlignment(Pos.CENTER); gridM2.setHgap(4); gridM2.setVgap(4);
@@ -1002,7 +1249,13 @@ public class AppGUI extends Application {
                     celdasM2[i][j].setStyle(i <= j ? ESTILO_U : ESTILO_CELDA_VACIA_RES);
                 }
             }
-            mostrarExito(nombreMetodo, "Matrices generadas al instante.\n" + (huboPermutacion ? "(Hubo permutación de filas)" : ""));
+            
+            if (solucion != null) {
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
+            } else {
+                mostrarExito(nombreMetodo, "Matrices generadas al instante.\n" + (huboPermutacion ? "(Hubo permutación de filas)" : ""), false);
+            }
+            
         } else {
             Timeline timeline = new Timeline();
             double delaySegundos = 0.0;
@@ -1031,8 +1284,15 @@ public class AppGUI extends Application {
                     delaySegundos += 0.15;
                 }
             }
+            
             final String finalMsg = msgExito;
-            KeyFrame fin = new KeyFrame(Duration.seconds(delaySegundos), e -> mostrarExito(nombreMetodo, finalMsg));
+            KeyFrame fin = new KeyFrame(Duration.seconds(delaySegundos), e -> {
+                if (solucion != null) {
+                    mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
+                } else {
+                    mostrarExito(nombreMetodo, finalMsg, false);
+                }
+            });
             timeline.getKeyFrames().add(fin);
             timeline.play();
         }
@@ -1054,5 +1314,61 @@ public class AppGUI extends Application {
             if (i < solucion.length - 1) sb.append("   |   ");
         }
         return sb.toString();
+    }
+    
+ // ==========================================
+    // IMPORTACIÓN DESDE ARCHIVO TXT
+    // ==========================================
+    private void cargarMatrizDesdeTXT(Stage stage) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Abrir Matriz TXT");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivos de Texto", "*.txt"));
+        
+        File file = fileChooser.showOpenDialog(stage);
+        
+        if (file != null) {
+            try {
+                // Leemos todo el contenido y reemplazamos comas por puntos por seguridad
+                String contenido = new String(Files.readAllBytes(file.toPath())).replace(",", ".");
+                
+                // Usamos un Scanner para extraer los números ignorando espacios y saltos de línea
+                Scanner scanner = new Scanner(contenido);
+                
+                int i = 0;
+                int j = 0;
+                int columnasTotales = n + 1;
+                
+                // Llenamos la cuadrícula de izquierda a derecha, de arriba a abajo
+                while (scanner.hasNext() && i < n) {
+                    // Validamos que sea un número para evitar que el programa falle por un texto erróneo en el TXT
+                    if (scanner.hasNextDouble()) {
+                        double valor = scanner.nextDouble();
+                        
+                        // Si el valor es entero (ej. 5.0), lo escribimos sin decimales (5) para que quede más limpio
+                        if (valor == (long) valor) {
+                            casillas[i][j].setText(String.format("%d", (long) valor));
+                        } else {
+                            casillas[i][j].setText(String.valueOf(valor));
+                        }
+                        
+                        j++;
+                        if (j == columnasTotales) {
+                            j = 0;
+                            i++;
+                        }
+                    } else {
+                        scanner.next(); // Salta cualquier basura que no sea número
+                    }
+                }
+                scanner.close();
+                
+                marcarBotonActivo(null);
+                setMetodoActivo("Archivo Cargado");
+                limpiarPantalla();
+                
+            } catch (Exception ex) {
+                mostrarError("Error de Archivo", "No se pudo leer el archivo TXT.");
+            }
+        }
     }
 }
