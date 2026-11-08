@@ -56,6 +56,13 @@ public class AppGUI extends Application {
     private static final String IN_FOCUS_L   = "-fx-background-color: #FFFFFF; -fx-border-color: #2DD4BF; -fx-border-width: 2; -fx-background-radius: 6; -fx-text-fill: #1E293B; -fx-effect: dropshadow(gaussian, rgba(45,212,191,0.45), 8, 0.4, 0, 0);";
     private static final String IN_FOCUS_LB  = "-fx-background-color: #FFFFFF; -fx-border-color: transparent transparent transparent #2DD4BF; -fx-border-width: 0 0 0 3; -fx-background-radius: 6; -fx-text-fill: #1E293B; -fx-effect: dropshadow(gaussian, rgba(45,212,191,0.45), 8, 0.4, 0, 0);";
 
+    // ===== Estilos Botones Sidebar =====
+    private final String BTN_SIDEBAR_BASE = "-fx-background-color: " + Paleta.ACENTO + "; -fx-text-fill: " + Paleta.FONDO_GLOBAL + "; -fx-font-family: '" + FUENTE_UI + "'; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand;";
+    private final String BTN_SIDEBAR_HOVER = "-fx-background-color: #5EEAD4; -fx-text-fill: " + Paleta.FONDO_GLOBAL + "; -fx-font-family: '" + FUENTE_UI + "'; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(45,212,191,0.4), 10, 0, 0, 0);";
+    private final String BTN_SIDEBAR_ACTIVO = "-fx-background-color: #D8B4FE; -fx-text-fill: #4C1D95; -fx-font-family: '" + FUENTE_UI + "'; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(168,85,247,0.8), 18, 0.6, 0, 0); -fx-border-color: #A855F7; -fx-border-width: 2; -fx-border-radius: 8;";
+    
+    private Button botonActivo = null;
+
     private GridPane gridMatriz;
     private TextField[][] casillas;
     private int n = 3;
@@ -113,12 +120,13 @@ public class AppGUI extends Application {
         Button btnMejoramiento = crearBotonSidebar("Mejoramiento Iterativo");
 
         // EVENTOS MATEMÁTICOS
-        btnGaussSimple.setOnAction(e -> ejecutarGauss(3));
-        btnGaussParcial.setOnAction(e -> ejecutarGauss(1));
-        btnGaussTotal.setOnAction(e -> ejecutarGauss(2));
-        btnJordan.setOnAction(e -> ejecutarJordan());
+        btnGaussSimple.setOnAction(e -> { marcarBotonActivo(btnGaussSimple); ejecutarGauss(3); });
+        btnGaussParcial.setOnAction(e -> { marcarBotonActivo(btnGaussParcial); ejecutarGauss(1); });
+        btnGaussTotal.setOnAction(e -> { marcarBotonActivo(btnGaussTotal); ejecutarGauss(2); });
+        btnJordan.setOnAction(e -> { marcarBotonActivo(btnJordan); ejecutarJordan(); });
 
         btnFactorizarLU.setOnAction(e -> {
+            marcarBotonActivo(btnFactorizarLU);
             setMetodoActivo("Factorización LU");
             limpiarPantalla();
             try {
@@ -130,16 +138,16 @@ public class AppGUI extends Application {
             }
         });
 
-        btnCroutL1U.setOnAction(e -> ejecutarCrout(true));
-        btnCroutLU1.setOnAction(e -> ejecutarCrout(false));
-        btnCholeskyL.setOnAction(e -> ejecutarCholesky(true));
-        btnCholeskyU.setOnAction(e -> ejecutarCholesky(false));
+        btnCroutL1U.setOnAction(e -> { marcarBotonActivo(btnCroutL1U); ejecutarCrout(true); });
+        btnCroutLU1.setOnAction(e -> { marcarBotonActivo(btnCroutLU1); ejecutarCrout(false); });
+        btnCholeskyL.setOnAction(e -> { marcarBotonActivo(btnCholeskyL); ejecutarCholesky(true); });
+        btnCholeskyU.setOnAction(e -> { marcarBotonActivo(btnCholeskyU); ejecutarCholesky(false); });
 
-        btnJacobi.setOnAction(e -> ejecutarIterativo(Iteracion.JACOBI));
-        btnSeidel.setOnAction(e -> ejecutarIterativo(Iteracion.SEIDEL));
-        btnSOR.setOnAction(e -> ejecutarIterativo(Iteracion.SOR));
-        btnRelajamiento.setOnAction(e -> ejecutarIterativo(Iteracion.RELAJACION));
-        btnMejoramiento.setOnAction(e -> ejecutarIterativo(Iteracion.MEJORAMIENTO));
+        btnJacobi.setOnAction(e -> { marcarBotonActivo(btnJacobi); ejecutarIterativo(Iteracion.JACOBI); });
+        btnSeidel.setOnAction(e -> { marcarBotonActivo(btnSeidel); ejecutarIterativo(Iteracion.SEIDEL); });
+        btnSOR.setOnAction(e -> { marcarBotonActivo(btnSOR); ejecutarIterativo(Iteracion.SOR); });
+        btnRelajamiento.setOnAction(e -> { marcarBotonActivo(btnRelajamiento); ejecutarIterativo(Iteracion.RELAJACION); });
+        btnMejoramiento.setOnAction(e -> { marcarBotonActivo(btnMejoramiento); ejecutarIterativo(Iteracion.MEJORAMIENTO); });
 
         panelLateral.getChildren().addAll(
             tituloMenu, new Separator(),
@@ -168,6 +176,7 @@ public class AppGUI extends Application {
 
         spinnerN.valueProperty().addListener((obs, viejo, nuevo) -> {
             n = nuevo;
+            marcarBotonActivo(null);
             setMetodoActivo(null);
             limpiarPantalla();
             generarCuadricula();
@@ -175,6 +184,7 @@ public class AppGUI extends Application {
 
         Button btnRandom = crearBotonAleatorio("Llenar Aleatorio");
         btnRandom.setOnAction(e -> {
+            marcarBotonActivo(null);
             setMetodoActivo("Llenado Aleatorio");
             generarMatrizAleatoria();
         });
@@ -186,6 +196,7 @@ public class AppGUI extends Application {
                     casillas[i][j].setText("");
                 }
             }
+            marcarBotonActivo(null);
             setMetodoActivo(null);
             limpiarPantalla();
         });
@@ -195,12 +206,10 @@ public class AppGUI extends Application {
         // ==========================================
         // 3. CONTENIDO CENTRAL
         // ==========================================
-        // Reducido de 30 a 15 para ahorrar espacio vertical
         contenidoGlobal = new VBox(15);
         contenidoGlobal.setAlignment(Pos.TOP_CENTER);
         contenidoGlobal.setPadding(new Insets(20, 40, 40, 40));
 
-        // Título dinámico del método activo (sin sombreado/glow)
         lblMetodoActivo = new Label("");
         lblMetodoActivo.setFont(Font.font(FUENTE_UI, FontWeight.BOLD, 34));
         lblMetodoActivo.setTextFill(Paleta.color(Paleta.ACENTO));
@@ -211,14 +220,13 @@ public class AppGUI extends Application {
         Label tituloMatriz = new Label("Ingrese la Matriz Ampliada");
         tituloMatriz.setFont(Font.font(FUENTE_UI, FontWeight.BOLD, 26));
         tituloMatriz.setTextFill(Paleta.color(Paleta.TEXTO_PRINCIPAL));
-        // Reducido drásticamente el margen inferior y superior
         VBox.setMargin(tituloMatriz, new Insets(10, 0, 0, 0));
 
         lblAlertaIngreso = new Label("⚠️ Carácter inválido: Solo números, signos o puntos.");
         lblAlertaIngreso.setTextFill(Paleta.color(Paleta.ERROR_TEXTO));
         lblAlertaIngreso.setFont(Font.font(FUENTE_UI, FontWeight.BOLD, 13));
         lblAlertaIngreso.setVisible(false);
-        lblAlertaIngreso.setManaged(false); // Importante para que no deje hueco cuando está oculto
+        lblAlertaIngreso.setManaged(false);
 
         envolturaMatriz = new HBox(5);
         envolturaMatriz.setAlignment(Pos.CENTER);
@@ -305,6 +313,19 @@ public class AppGUI extends Application {
         stage.setTitle("Sistemas de Ecuaciones Lineales");
         stage.setScene(scene);
         stage.show();
+    }
+
+    // ==========================================
+    // MARCAR BOTÓN ACTIVO (Lila Claro)
+    // ==========================================
+    private void marcarBotonActivo(Button btn) {
+        if (botonActivo != null) {
+            botonActivo.setStyle(BTN_SIDEBAR_BASE);
+        }
+        botonActivo = btn;
+        if (botonActivo != null) {
+            botonActivo.setStyle(BTN_SIDEBAR_ACTIVO);
+        }
     }
 
     // ==========================================
@@ -406,13 +427,13 @@ public class AppGUI extends Application {
                     if (!newVal.matches("-?\\d*([\\.,]\\d*)?")) {
                         if (lblAlertaIngreso != null) {
                             lblAlertaIngreso.setVisible(true);
-                            lblAlertaIngreso.setManaged(true); // Ocupa espacio
+                            lblAlertaIngreso.setManaged(true);
                         }
                         tf.setText(oldVal);
                     } else {
                         if (lblAlertaIngreso != null) {
                             lblAlertaIngreso.setVisible(false);
-                            lblAlertaIngreso.setManaged(false); // Ya no ocupa espacio
+                            lblAlertaIngreso.setManaged(false);
                         }
                         tf.setStyle(estiloInput(!newVal.isEmpty(), tf.isFocused(), esB));
                     }
@@ -453,7 +474,7 @@ public class AppGUI extends Application {
         contenedorResultadosVisuales.getChildren().clear();
         panelResultado.setVisible(false);
         lblAlertaIngreso.setVisible(false);
-        lblAlertaIngreso.setManaged(false); // No ocupa espacio al limpiar
+        lblAlertaIngreso.setManaged(false);
     }
 
     private TextField crearCeldaResultados() {
@@ -498,17 +519,21 @@ public class AppGUI extends Application {
     private Button crearBotonSidebar(String texto) {
         Button btn = new Button(texto);
         btn.setMaxWidth(Double.MAX_VALUE);
-        String base  = "-fx-background-color: " + Paleta.ACENTO + "; -fx-text-fill: " + Paleta.FONDO_GLOBAL + "; -fx-font-family: '" + FUENTE_UI + "'; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand;";
-        String hover = "-fx-background-color: #5EEAD4; -fx-text-fill: " + Paleta.FONDO_GLOBAL + "; -fx-font-family: '" + FUENTE_UI + "'; -fx-font-weight: bold; -fx-background-radius: 8; -fx-cursor: hand; -fx-effect: dropshadow(gaussian, rgba(45,212,191,0.4), 10, 0, 0, 0);";
-        btn.setStyle(base);
+        btn.setStyle(BTN_SIDEBAR_BASE);
 
         ScaleTransition stIn = new ScaleTransition(Duration.millis(150), btn);
         stIn.setToX(1.02); stIn.setToY(1.02);
         ScaleTransition stOut = new ScaleTransition(Duration.millis(150), btn);
         stOut.setToX(1.0); stOut.setToY(1.0);
 
-        btn.setOnMouseEntered(e -> { btn.setStyle(hover); stIn.playFromStart(); });
-        btn.setOnMouseExited(e -> { btn.setStyle(base); stOut.playFromStart(); });
+        btn.setOnMouseEntered(e -> { 
+            if (btn != botonActivo) btn.setStyle(BTN_SIDEBAR_HOVER); 
+            stIn.playFromStart(); 
+        });
+        btn.setOnMouseExited(e -> { 
+            if (btn != botonActivo) btn.setStyle(BTN_SIDEBAR_BASE); 
+            stOut.playFromStart(); 
+        });
         return btn;
     }
 
