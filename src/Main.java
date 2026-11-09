@@ -1,6 +1,7 @@
 import modelo.Matriz;
 import servicios.MetodosDirectosMatriz;
 import servicios.MetodosIterativosMatriz;
+import servicios.LectorMatrizTXT;
 
 public class Main{
 
@@ -1229,6 +1230,94 @@ try {
         verificarIterativo("22k SOR con ω = 0.5 (subrelajación)", xBurden73,
             () -> MetodosIterativosMatriz.SORSolucion(new Matriz(datosBurden73), new double[4], 0.5, 1e-10, 1000));
 
+        // ---------------------------------------------------------
+        // TEST 23: Carga de la matriz ampliada desde TXT (fail-fast)
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 23: Carga desde TXT ---");
+
+        double[][] ampliada2x3 = {
+            {4, 1, 5},
+            {1, 3, 6}
+        };
+        verificarLecturaTXT("23a Archivo correcto", "4 1 5\n1 3 6\n", 2, ampliada2x3);
+        verificarLecturaTXT("23b Valores en una sola línea, tabs y CRLF", "4\t1  5 1\r\n3 6", 2, ampliada2x3);
+        verificarLecturaTXT("23c Coma decimal, punto, científica y signos", "1,5 -3.25 1e-3\n+2 .5 2E2", 2,
+            new double[][]{{1.5, -3.25, 0.001}, {2, 0.5, 200}});
+        verificarLecturaTXT("23d Archivo con BOM de UTF-8", "\uFEFF4 1 5\n1 3 6", 2, ampliada2x3);
+
+        System.out.println("-- 23e No depende del locale (es-AR) --");
+        java.util.Locale localeOriginal = java.util.Locale.getDefault();
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("es-AR"));
+            double[][] leida = LectorMatrizTXT.leerAmpliada("1.5 1.000 2\n3 4 5", 2);
+            System.out.println(leida[0][0] == 1.5 && leida[0][1] == 1.0
+                ? "Éxito. Con locale es-AR, 1.5 -> 1.5 y 1.000 -> 1.0"
+                : "FALLO: Con locale es-AR leyó " + java.util.Arrays.deepToString(leida));
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        } finally {
+            java.util.Locale.setDefault(localeOriginal);
+        }
+
+        verificarErrorTXT("23f Valor no numérico", "4 1 x=5\n1 3 6", 2, "'x=5'", "línea 1");
+        verificarErrorTXT("23g Faltan valores", "4 1 5\n1 3", 2, "6", "5");
+        verificarErrorTXT("23h Sobran valores", "4 1 5\n1 3 6\n7 8 9", 2, "6", "9");
+        verificarErrorTXT("23i Archivo vacío", "", 2, "6", "0");
+        verificarErrorTXT("23j NaN", "4 1 5\n1 NaN 6", 2, "'NaN'", "línea 2");
+        verificarErrorTXT("23k Infinity", "4 1 5\n1 3 Infinity", 2, "'Infinity'", "línea 2");
+        verificarErrorTXT("23l Valor fuera de rango de double", "4 1 5\n1 3 1e400", 2, "'1e400'", "línea 2");
+        verificarErrorTXT("23m Coma como separador", "4,1,5\n1,3,6", 2, "'4,1,5'", "línea 1");
+        verificarErrorTXT("23n Sufijo de Java (1d)", "4 1 5\n1 3 6d", 2, "'6d'", "línea 2");
+        verificarErrorTXT("23o n inválido", "4 1 5\n1 3 6", 0, "n", "");
+        verificarErrorTXT("23p Contenido null", null, 2, "", "");
+
+        System.out.println("-- 23q Lectura desde archivo --");
+        try {
+            java.nio.file.Path archivo = java.nio.file.Files.createTempFile("matriz", ".txt");
+            try {
+                java.nio.file.Files.writeString(archivo, "4 1 5\n1 3 6\n");
+                double[][] leida = LectorMatrizTXT.leerAmpliada(archivo, 2);
+                System.out.println(java.util.Arrays.deepEquals(leida, ampliada2x3)
+                    ? "Éxito. Leída: " + java.util.Arrays.deepToString(leida)
+                    : "FALLO: Leída " + java.util.Arrays.deepToString(leida));
+            } finally {
+                java.nio.file.Files.deleteIfExists(archivo);
+            }
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // Matriz grande: 100 filas de 101 valores
+        System.out.println("-- 23s Matriz de 100 x 101 --");
+        try {
+            int nMax = 100;
+            double[][] esperadaMax = new double[nMax][nMax + 1];
+            StringBuilder contenidoMax = new StringBuilder();
+            for (int i = 0; i < nMax; i++) {
+                for (int j = 0; j < nMax + 1; j++) {
+                    esperadaMax[i][j] = (i == j) ? 1000 + i : (i - j) / 4.0; // incluye negativos y decimales
+                    contenidoMax.append(esperadaMax[i][j]).append(j < nMax ? " " : "\n");
+                }
+            }
+            double[][] leida = LectorMatrizTXT.leerAmpliada(contenidoMax.toString(), nMax);
+            Matriz ampliadaMax = new Matriz(leida);
+            System.out.println(java.util.Arrays.deepEquals(leida, esperadaMax) && ampliadaMax.esAmpliada()
+                ? "Éxito. Cargó " + ampliadaMax.getCantFilas() + " x " + ampliadaMax.getCantColumnas() + " valores sin diferencias."
+                : "FALLO: La matriz leída no coincide con la escrita.");
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        System.out.println("-- 23r Archivo inexistente --");
+        try {
+            LectorMatrizTXT.leerAmpliada(java.nio.file.Path.of("no-existe-" + System.nanoTime() + ".txt"), 2);
+            System.out.println("FALLO: No lanzó excepción.");
+        } catch (java.io.IOException e) {
+            System.out.println("FALLO ESPERADO (Archivo inexistente): " + e.getClass().getSimpleName());
+        } catch (Exception e) {
+            System.out.println("FALLO: Excepción incorrecta " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
         System.out.println("\n==================================================");
         System.out.println("   FIN DEL TESTEO");
         System.out.println("==================================================");
@@ -1297,6 +1386,35 @@ try {
                 : "FALLO: Convergió a " + java.util.Arrays.toString(x) + " y se esperaba divergencia.");
         } catch (Exception e) {
             System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+    }
+
+    private static void verificarLecturaTXT(String nombre, String contenido, int n, double[][] esperado) {
+        System.out.println("-- " + nombre + " --");
+        try {
+            double[][] leida = LectorMatrizTXT.leerAmpliada(contenido, n);
+            System.out.println(java.util.Arrays.deepEquals(leida, esperado)
+                ? "Éxito. Leída: " + java.util.Arrays.deepToString(leida)
+                : "FALLO: Leída " + java.util.Arrays.deepToString(leida) + " (esperado " + java.util.Arrays.deepToString(esperado) + ")");
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+    }
+
+    // El mensaje debe contener los dos fragmentos, para que el usuario sepa qué y dónde corregir
+    private static void verificarErrorTXT(String nombre, String contenido, int n, String fragmento1, String fragmento2) {
+        System.out.println("-- " + nombre + " --");
+        try {
+            LectorMatrizTXT.leerAmpliada(contenido, n);
+            System.out.println("FALLO: No lanzó excepción.");
+        } catch (IllegalArgumentException e) {
+            boolean informativo = e.getMessage() != null && e.getMessage().startsWith("Error:")
+                && e.getMessage().contains(fragmento1) && e.getMessage().contains(fragmento2);
+            System.out.println(informativo
+                ? "FALLO ESPERADO: " + e.getClass().getSimpleName() + " - " + e.getMessage()
+                : "FALLO: Mensaje poco informativo - " + e.getMessage());
+        } catch (Exception e) {
+            System.out.println("FALLO: Excepción incorrecta " + e.getClass().getSimpleName() + " - " + e.getMessage());
         }
     }
 

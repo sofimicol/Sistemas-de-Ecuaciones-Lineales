@@ -23,14 +23,14 @@ import javafx.util.Duration;
 import modelo.Matriz;
 import servicios.MetodosDirectosMatriz;
 import servicios.MetodosIterativosMatriz;
+import servicios.LectorMatrizTXT;
 import javafx.scene.input.KeyCode;
 
 import java.io.File;
-import java.nio.file.Files;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
-import java.util.Scanner;
 
 public class AppGUI extends Application {
 
@@ -522,38 +522,27 @@ public class AppGUI extends Application {
         
         if (file != null) {
             try {
-                String contenido = new String(Files.readAllBytes(file.toPath())).replace(",", ".");
-                Scanner scanner = new Scanner(contenido);
-                
-                int i = 0;
-                int j = 0;
-                int columnasTotales = n + 1;
-                
-                while (scanner.hasNext() && i < n) {
-                    if (scanner.hasNextDouble()) {
-                        double valor = scanner.nextDouble();
+                // Fail-fast: si el archivo tiene algún error se informa y la cuadrícula no se modifica
+                double[][] ampliada = LectorMatrizTXT.leerAmpliada(file.toPath(), n);
+
+                for (int i = 0; i < n; i++) {
+                    for (int j = 0; j < n + 1; j++) {
+                        double valor = ampliada[i][j];
                         if (valor == (long) valor) {
                             casillas[i][j].setText(String.format("%d", (long) valor));
                         } else {
                             casillas[i][j].setText(String.valueOf(valor));
                         }
-                        
-                        j++;
-                        if (j == columnasTotales) {
-                            j = 0;
-                            i++;
-                        }
-                    } else {
-                        scanner.next(); 
                     }
                 }
-                scanner.close();
-                
+
                 marcarBotonActivo(null);
                 setMetodoActivo("Archivo Cargado");
                 limpiarPantalla();
-                
-            } catch (Exception ex) {
+
+            } catch (IllegalArgumentException ex) {
+                mostrarError("Error de Archivo", ex.getMessage());
+            } catch (IOException ex) {
                 mostrarError("Error de Archivo", "No se pudo leer el archivo TXT.");
             }
         }
