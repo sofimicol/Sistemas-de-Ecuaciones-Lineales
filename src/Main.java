@@ -1,5 +1,6 @@
 import modelo.Matriz;
 import servicios.MetodosDirectosMatriz;
+import servicios.MetodosIterativosMatriz;
 
 public class Main{
 
@@ -1007,6 +1008,227 @@ try {
             System.out.println("FALLO DE TIPO DE EXCEPCIÓN: " + e.getClass().getSimpleName() + " - " + e.getMessage());
         }
 
+        // ---------------------------------------------------------
+        // TEST 21: Métodos iterativos (ejemplos de Burden & Faires, cap. 7)
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 21: Métodos Iterativos ---");
+
+        // Burden 7.3, Ejemplo 1: diagonal estrictamente dominante, x = (1, 2, -1, 1)
+        double[][] datosBurden73 = {
+            {10, -1, 2, 0, 6},
+            {-1, 11, -1, 3, 25},
+            {2, -1, 10, -1, -11},
+            {0, 3, -1, 8, 15}
+        };
+        double[] xBurden73 = {1, 2, -1, 1};
+        double[] x0Burden73 = new double[4];
+        verificarIterativo("21a Jacobi (Burden 7.3)", xBurden73,
+            () -> MetodosIterativosMatriz.JacobiSolucion(new Matriz(datosBurden73), x0Burden73, 1e-10, 1000));
+        verificarIterativo("21b Gauss-Seidel (Burden 7.3)", xBurden73,
+            () -> MetodosIterativosMatriz.GaussSeidelSolucion(new Matriz(datosBurden73), x0Burden73, 1e-10, 1000));
+        verificarIterativo("21c Relajación (Burden 7.3)", xBurden73,
+            () -> MetodosIterativosMatriz.Relajacion(new Matriz(datosBurden73), x0Burden73, 1e-10, 10000));
+
+        System.out.println("-- 21d x0 no se modifica --");
+        System.out.println(java.util.Arrays.equals(x0Burden73, new double[4])
+            ? "Éxito. x0 quedó intacto."
+            : "FALLO: x0 fue modificado: " + java.util.Arrays.toString(x0Burden73));
+
+        // Burden 7.4, Ejemplo 3: SOR con ω = 1.25 desde x0 = (1, 1, 1), x = (3, 4, -5)
+        double[][] datosBurden74 = {
+            {4, 3, 0, 24},
+            {3, 4, -1, 30},
+            {0, -1, 4, -24}
+        };
+        double[] xBurden74 = {3, 4, -5};
+        verificarIterativo("21e SOR ω=1.25 (Burden 7.4)", xBurden74,
+            () -> MetodosIterativosMatriz.SORSolucion(new Matriz(datosBurden74), new double[]{1, 1, 1}, 1.25, 1e-10, 1000));
+
+        // Con las mismas 7 iteraciones, SOR (ω=1.25) debe quedar más cerca que Gauss-Seidel
+        System.out.println("-- 21f SOR acelera a Gauss-Seidel (7 iteraciones) --");
+        try {
+            double errorSOR = errorInfinito(MetodosIterativosMatriz.SORSolucion(new Matriz(datosBurden74), new double[]{1, 1, 1}, 1.25, 0, 7), xBurden74);
+            double errorGS = errorInfinito(MetodosIterativosMatriz.GaussSeidelSolucion(new Matriz(datosBurden74), new double[]{1, 1, 1}, 0, 7), xBurden74);
+            System.out.println(errorSOR < errorGS
+                ? "Éxito. Error SOR = " + errorSOR + " < Error Gauss-Seidel = " + errorGS
+                : "FALLO: Error SOR = " + errorSOR + " >= Error Gauss-Seidel = " + errorGS);
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // Burden 7.3, ejercicios: Jacobi converge y Gauss-Seidel diverge, x = (1, 1, 1)
+        double[][] datosSoloJacobi = {
+            {1, 2, -2, 1},
+            {1, 1, 1, 3},
+            {2, 2, 1, 5}
+        };
+        // ... y al revés: Gauss-Seidel converge y Jacobi diverge, x = (1, 1, 1)
+        double[][] datosSoloSeidel = {
+            {2, -1, 1, 2},
+            {2, 2, 2, 6},
+            {-1, -1, 2, 0}
+        };
+        double[] unos = {1, 1, 1};
+        verificarIterativo("21g Jacobi converge (contraejemplo)", unos,
+            () -> MetodosIterativosMatriz.JacobiSolucion(new Matriz(datosSoloJacobi), new double[3], 1e-10, 100));
+        verificarDivergencia("21h Gauss-Seidel diverge (contraejemplo)", unos,
+            () -> MetodosIterativosMatriz.GaussSeidelSolucion(new Matriz(datosSoloJacobi), new double[3], 1e-10, 100));
+        verificarIterativo("21i Gauss-Seidel converge (contraejemplo)", unos,
+            () -> MetodosIterativosMatriz.GaussSeidelSolucion(new Matriz(datosSoloSeidel), new double[3], 1e-10, 100));
+        verificarDivergencia("21j Jacobi diverge (contraejemplo)", unos,
+            () -> MetodosIterativosMatriz.JacobiSolucion(new Matriz(datosSoloSeidel), new double[3], 1e-10, 100));
+
+        // Burden 7.5, Ejemplo 4: matriz mal condicionada, x = (1, 1, 1)
+        double[][] datosBurden75 = {
+            {3.3330, 15920, -10.333, 15913},
+            {2.2220, 16.710, 9.6120, 28.544},
+            {1.5611, 5.1791, 1.6852, 8.4254}
+        };
+        verificarIterativo("21k Mejoramiento iterativo (Burden 7.5)", unos,
+            () -> MetodosIterativosMatriz.MejoramientoIterativo(new Matriz(datosBurden75), new double[3], 1e-10, 20));
+
+        System.out.println("-- 21l SOR con ω fuera de (0, 2) --");
+        for (double omega : new double[]{0, 2, -0.5, 2.5}) {
+            try {
+                MetodosIterativosMatriz.SORSolucion(new Matriz(datosBurden74), new double[3], omega, 1e-10, 100);
+                System.out.println("FALLO: No lanzó excepción con ω = " + omega);
+            } catch (IllegalArgumentException e) {
+                System.out.println("FALLO ESPERADO (ω = " + omega + "): " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("FALLO: Excepción incorrecta " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            }
+        }
+
+        System.out.println("-- 21m Cero en la diagonal --");
+        double[][] datosDiagonalNula = {
+            {0, 1, 1},
+            {1, 1, 2}
+        };
+        for (String metodo : new String[]{"Jacobi", "GaussSeidel", "SOR", "Relajacion"}) {
+            try {
+                resolverIterativo(metodo, new Matriz(datosDiagonalNula));
+                System.out.println("FALLO: " + metodo + " no lanzó excepción.");
+            } catch (ArithmeticException e) {
+                System.out.println("FALLO ESPERADO (" + metodo + "): " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("FALLO: Excepción incorrecta en " + metodo + " " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            }
+        }
+
+        System.out.println("-- 21n Matriz no ampliada --");
+        for (String metodo : new String[]{"Jacobi", "GaussSeidel", "SOR", "Relajacion", "Mejoramiento"}) {
+            try {
+                resolverIterativo(metodo, new Matriz(new double[][]{{4, 1}, {1, 3}}));
+                System.out.println("FALLO: " + metodo + " no lanzó excepción.");
+            } catch (IllegalArgumentException e) {
+                System.out.println("FALLO ESPERADO (" + metodo + "): " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            } catch (Exception e) {
+                System.out.println("FALLO: Excepción incorrecta en " + metodo + " " + e.getClass().getSimpleName() + " - " + e.getMessage());
+            }
+        }
+
+        // ---------------------------------------------------------
+        // TEST 22: Casos del apunte de la cátedra (Barberis, Sistemas de Ecuaciones Lineales)
+        // ---------------------------------------------------------
+        System.out.println("\n--- TEST 22: Casos de la Cátedra ---");
+
+        // Sistema sensible del apunte (pág. 17). El apunte dice x = (1, 5, -1): es una errata, A * (1, 5, -1) != b.
+        // La solución correcta es x = (1, 2, -1)
+        double[][] datosSensible = {
+            {3.02, -1.05, 2.53, -1.61},
+            {4.33, 0.56, -1.78, 7.23},
+            {-0.83, -0.54, 1.47, -3.38}
+        };
+        double[] xSensible = {1, 2, -1};
+        verificarSolucion("22a Solución del sistema sensible", xSensible, 1e-9,
+            () -> MetodosDirectosMatriz.GaussPivoteoParcial(new Matriz(datosSensible)));
+
+        // Pág. 18: cond(A) = ||A|| * ||A^-1|| = 6.67 * 1138.6758 = 7594.967585 (el apunte multiplica valores redondeados)
+        System.out.println("-- 22b cond(A) del sistema sensible --");
+        try {
+            Matriz ASensible = new Matriz(datosSensible).extraerA();
+            double norma = ASensible.norma();
+            double normaInversa = ASensible.inversa().norma();
+            double cond = ASensible.condicion();
+            boolean ok = Math.abs(norma - 6.67) < 1e-12
+                && Math.abs(normaInversa - 1138.6758) < 1e-4
+                && Math.abs(cond - 7594.9676) < 1e-3;
+            System.out.println(ok
+                ? "Éxito. ||A|| = " + norma + ", ||A^-1|| = " + normaInversa + ", cond(A) = " + cond
+                : "FALLO: ||A|| = " + norma + ", ||A^-1|| = " + normaInversa + ", cond(A) = " + cond);
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // Pág. 17: perturbaciones. El apunte dice x2 = 6.522890 para a11 = 3: errata de dígitos, el valor es 6.522089
+        double[][] datosA11 = {
+            {3.0, -1.05, 2.53, -1.61},
+            {4.33, 0.56, -1.78, 7.23},
+            {-0.83, -0.54, 1.47, -3.38}
+        };
+        double[] xA11 = {1.127677, 6.522089, 0.733265};
+        double[][] datosB3 = {
+            {3.02, -1.05, 2.53, -1.61},
+            {4.33, 0.56, -1.78, 7.23},
+            {-0.83, -0.54, 1.47, -3.3}
+        };
+        double[] xB3 = {-0.4840218, -51.593141, -21.470771};
+        verificarSolucion("22c Perturbación a11 = 3", xA11, 1e-6,
+            () -> MetodosDirectosMatriz.GaussPivoteoParcial(new Matriz(datosA11)));
+        verificarSolucion("22d Perturbación b3 = -3.3", xB3, 1e-6,
+            () -> MetodosDirectosMatriz.GaussPivoteoParcial(new Matriz(datosB3)));
+
+        // Pág. 19: cotas de error relativo ||x* - x|| / ||x|| <= cond(A) * ||δA|| / ||A||  y  <= cond(A) * ||δb|| / ||b||
+        System.out.println("-- 22e Cotas de error relativo --");
+        try {
+            double cond = new Matriz(datosSensible).extraerA().condicion();
+            double errorA11 = errorInfinito(xA11, xSensible) / Matriz.normaInfinitoVector(xSensible);
+            double cotaA11 = cond * 0.02 / 6.67;
+            double errorB3 = errorInfinito(xB3, xSensible) / Matriz.normaInfinitoVector(xSensible);
+            double cotaB3 = cond * 0.08 / 7.23;
+            System.out.println(errorA11 <= cotaA11 && errorB3 <= cotaB3
+                ? "Éxito. δA: " + errorA11 + " <= " + cotaA11 + "; δb: " + errorB3 + " <= " + cotaB3
+                : "FALLO: δA: " + errorA11 + " vs " + cotaA11 + "; δb: " + errorB3 + " vs " + cotaB3);
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // Pág. 20: el mejoramiento parte de una aproximación x0 obtenida por un método directo
+        verificarIterativo("22f Mejoramiento desde la solución perturbada", xSensible,
+            () -> MetodosIterativosMatriz.MejoramientoIterativo(new Matriz(datosSensible), xA11.clone(), 1e-12, 20));
+        verificarIterativo("22g Mejoramiento desde x0 = 0", xSensible,
+            () -> MetodosIterativosMatriz.MejoramientoIterativo(new Matriz(datosSensible), new double[3], 1e-12, 20));
+
+        // Pág. 24: Gauss-Seidel converge si A es estrictamente diagonal dominante O simétrica definida positiva.
+        // La matriz de Cholesky (TEST 18) es SDP y no es diagonal dominante; para Jacobi no hay garantía (acá diverge)
+        double[][] datosSDP = ampliar(datosCholesky, bCholesky);
+        verificarIterativo("22h Gauss-Seidel converge con A simétrica definida positiva", xCholesky,
+            () -> MetodosIterativosMatriz.GaussSeidelSolucion(new Matriz(datosSDP), new double[3], 1e-12, 10000));
+        verificarDivergencia("22i Jacobi sin garantía con A simétrica definida positiva", xCholesky,
+            () -> MetodosIterativosMatriz.JacobiSolucion(new Matriz(datosSDP), new double[3], 1e-12, 100));
+
+        // Pág. 26: con ω = 1, SOR es Gauss-Seidel (mismas iteraciones, resultado idéntico)
+        System.out.println("-- 22j SOR con ω = 1 es Gauss-Seidel --");
+        try {
+            boolean iguales = true;
+            for (int iteraciones : new int[]{1, 3, 7}) {
+                double[] xSOR = MetodosIterativosMatriz.SORSolucion(new Matriz(datosBurden74), new double[]{1, 1, 1}, 1.0, 0, iteraciones);
+                double[] xGS = MetodosIterativosMatriz.GaussSeidelSolucion(new Matriz(datosBurden74), new double[]{1, 1, 1}, 0, iteraciones);
+                if (!java.util.Arrays.equals(xSOR, xGS)) {
+                    iguales = false;
+                }
+            }
+            System.out.println(iguales
+                ? "Éxito. SOR(ω=1) y Gauss-Seidel coinciden tras 1, 3 y 7 iteraciones."
+                : "FALLO: SOR(ω=1) difiere de Gauss-Seidel.");
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+
+        // Pág. 25: con 0 < ω < 1 el método es de "relajación" (subrelajación)
+        verificarIterativo("22k SOR con ω = 0.5 (subrelajación)", xBurden73,
+            () -> MetodosIterativosMatriz.SORSolucion(new Matriz(datosBurden73), new double[4], 0.5, 1e-10, 1000));
+
         System.out.println("\n==================================================");
         System.out.println("   FIN DEL TESTEO");
         System.out.println("==================================================");
@@ -1027,6 +1249,54 @@ try {
             case "CroutLU1": return MetodosDirectosMatriz.CroutSolucionLU1(Ab);
             case "CholeskyL": return MetodosDirectosMatriz.CholeskySolucionL(Ab);
             default: return MetodosDirectosMatriz.CholeskySolucionU(Ab);
+        }
+    }
+
+    private static double[] resolverIterativo(String metodo, Matriz Ab) {
+        double[] x0 = new double[Ab.getCantFilas()];
+        switch (metodo) {
+            case "Jacobi": return MetodosIterativosMatriz.JacobiSolucion(Ab, x0, 1e-10, 100);
+            case "GaussSeidel": return MetodosIterativosMatriz.GaussSeidelSolucion(Ab, x0, 1e-10, 100);
+            case "SOR": return MetodosIterativosMatriz.SORSolucion(Ab, x0, 1.25, 1e-10, 100);
+            case "Relajacion": return MetodosIterativosMatriz.Relajacion(Ab, x0, 1e-10, 100);
+            default: return MetodosIterativosMatriz.MejoramientoIterativo(Ab, x0, 1e-10, 100);
+        }
+    }
+
+    private static double errorInfinito(double[] x, double[] esperado) {
+        double max = 0.0;
+        for (int i = 0; i < x.length; i++) {
+            max = Math.max(max, Math.abs(x[i] - esperado[i]));
+        }
+        return max;
+    }
+
+    private static void verificarIterativo(String nombre, double[] esperado, java.util.function.Supplier<double[]> metodo) {
+        verificarSolucion(nombre, esperado, 1e-8, metodo);
+    }
+
+    private static void verificarSolucion(String nombre, double[] esperado, double tolerancia, java.util.function.Supplier<double[]> metodo) {
+        System.out.println("-- " + nombre + " --");
+        try {
+            double[] x = metodo.get();
+            System.out.println(errorInfinito(x, esperado) < tolerancia
+                ? "Éxito. Solución: " + java.util.Arrays.toString(x)
+                : "FALLO: Solución = " + java.util.Arrays.toString(x) + " (esperado " + java.util.Arrays.toString(esperado) + ")");
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+        }
+    }
+
+    // Sin convergencia los métodos no lanzan excepción: devuelven la última iteración, lejos de la solución
+    private static void verificarDivergencia(String nombre, double[] solucion, java.util.function.Supplier<double[]> metodo) {
+        System.out.println("-- " + nombre + " --");
+        try {
+            double[] x = metodo.get();
+            System.out.println(errorInfinito(x, solucion) > 1
+                ? "Éxito. Diverge como predice la teoría: " + java.util.Arrays.toString(x)
+                : "FALLO: Convergió a " + java.util.Arrays.toString(x) + " y se esperaba divergencia.");
+        } catch (Exception e) {
+            System.out.println("FALLO: " + e.getClass().getSimpleName() + " - " + e.getMessage());
         }
     }
 
