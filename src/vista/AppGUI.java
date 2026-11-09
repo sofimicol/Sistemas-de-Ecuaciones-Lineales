@@ -192,7 +192,7 @@ public class AppGUI extends Application {
         lblTamanio.setTextFill(Paleta.color(Paleta.TEXTO_PRINCIPAL));
         lblTamanio.setFont(Font.font(FUENTE_UI, FontWeight.BOLD, 14));
 
-        Spinner<Integer> spinnerN = new Spinner<>(2, Matriz.MAX_DIMENSION, n);
+        Spinner<Integer> spinnerN = new Spinner<>(2, Integer.MAX_VALUE, n);
         spinnerN.setPrefWidth(80);
         spinnerN.setEditable(true);
         spinnerN.setStyle("-fx-background-color: " + Paleta.FONDO_TARJETA2 + "; -fx-border-color: " + Paleta.BORDE_SUTIL + "; -fx-background-radius: 6;");

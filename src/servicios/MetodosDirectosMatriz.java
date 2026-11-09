@@ -255,7 +255,7 @@ public class MetodosDirectosMatriz {
 	  }
 
 	  // Cholesky A = L * L^T para resolver A * x = b. La "fila adicional" de la cátedra (la que contiene a b)
-	  // se guarda en el vector y, porque una matriz de (n+1) x n superaría MAX_DIMENSION con n = 100
+	  // se guarda en el vector y
 	  public static double[] CholeskySolucionL(Matriz Ab) {
 	    int n = Ab.getCantFilas();
 	    Matriz A = Ab.extraerA();

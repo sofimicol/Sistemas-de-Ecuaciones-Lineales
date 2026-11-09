@@ -23,9 +23,6 @@ public class Matriz {
 	        if (datos == null || datos.length == 0 || datos[0].length == 0) {
 	            throw new IllegalArgumentException("Error: La matriz no puede ser nula o vacía.");
 	        }
-	        if (datos.length > MAX_DIMENSION || datos[0].length > MAX_DIMENSION + 1) {
-	            throw new IllegalArgumentException("Error: Las dimensiones exceden la tolerancia máxima de " + MAX_DIMENSION + ".");
-	        }
 	        int columnas = datos[0].length;
 	        for (int i = 1; i < datos.length; i++) {
 	            if (datos[i].length != columnas) {
@@ -47,19 +44,18 @@ public class Matriz {
 	    }
 
 	    public boolean validarDimensiones(int cantFilas, int cantColumnas) {
-	        if (cantFilas <= 0 || cantFilas > MAX_DIMENSION) {
-	            throw new IllegalArgumentException("Error: La cantidad de filas debe ser mayor a 0 y no exceder " + MAX_DIMENSION + ".");
+	        if (cantFilas <= 0) {
+	            throw new IllegalArgumentException("Error: La cantidad de filas debe ser mayor a 0.");
 	        }
-	        if (cantColumnas <= 0 || cantColumnas > MAX_DIMENSION + 1) {
-	            throw new IllegalArgumentException("Error: La cantidad de columnas debe ser mayor a 0 y no exceder " + (MAX_DIMENSION+1) + ".");
+	        if (cantColumnas <= 0) {
+	            throw new IllegalArgumentException("Error: La cantidad de columnas debe ser mayor a 0.");
 	        }
 	        return true;
 	    }
 	    // no vamos a dejar que el usuario modifique la cantidad de filas y columnas directamente, sino que lo haga a través de los métodos setCantFilas y setCantColumnas, que validan las dimensiones antes de hacer el cambio.
 	    public void setCantFilas(int cantFilas) {
-	        if (cantFilas <= 0 || cantFilas > MAX_DIMENSION) {
-	            throw new IllegalArgumentException(
-	                "Error: La cantidad de filas debe ser mayor a 0 y no exceder " + MAX_DIMENSION + ".");
+	        if (cantFilas <= 0) {
+	            throw new IllegalArgumentException("Error: La cantidad de filas debe ser mayor a 0.");
 	        }
 	        if (cantFilas == this.cantFilas) return;
 
@@ -80,9 +76,8 @@ public class Matriz {
 	    }
 	//no vamos a dejar que el usuario modifique la cantidad de filas y columnas directamente, sino que lo haga a través de los métodos setCantFilas y setCantColumnas, que validan las dimensiones antes de hacer el cambio.
 	    public void setCantColumnas(int cantColumnas) {
-	        if (cantColumnas <= 0 || cantColumnas > MAX_DIMENSION + 1) {
-	            throw new IllegalArgumentException(
-	                "Error: La cantidad de columnas debe ser mayor a 0 y no exceder " + (MAX_DIMENSION + 1) + ".");
+	        if (cantColumnas <= 0) {
+	            throw new IllegalArgumentException("Error: La cantidad de columnas debe ser mayor a 0.");
 	        }
 	        if (cantColumnas == this.cantColumnas) return;
 

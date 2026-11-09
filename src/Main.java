@@ -182,9 +182,9 @@ try {
         }
 
         // ---------------------------------------------------------
-        // TEST 7: Validación de Dimensiones (Rectangularidad y Límites)
+        // TEST 7: Validación de Dimensiones (Rectangularidad)
         // ---------------------------------------------------------
-        System.out.println("\n--- TEST 7: Matriz Irregular y Límites ---");
+        System.out.println("\n--- TEST 7: Matriz Irregular ---");
         try {
             // Intentamos crear una matriz jagged (irregular)
             Matriz jagged = new Matriz(new double[][]{
@@ -194,13 +194,6 @@ try {
             });
         } catch (Exception e) {
             System.out.println("FALLO ESPERADO (Jagged): " + e.getClass().getSimpleName() + " - " + e.getMessage());
-        }
-
-        try {
-            // Intentamos crear una matriz que excede MAX_DIMENSION (100)
-            Matriz gigante = new Matriz(101, 102); 
-        } catch (Exception e) {
-            System.out.println("FALLO ESPERADO (Límite): " + e.getClass().getSimpleName() + " - " + e.getMessage());
         }
 
         // ---------------------------------------------------------
