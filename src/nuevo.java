@@ -14,6 +14,7 @@ import javafx.scene.shape.Path;
 import javafx.scene.shape.QuadCurveTo;
 import javafx.scene.text.Font;
 import javafx.scene.text.FontWeight;
+import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -24,9 +25,12 @@ import servicios.MetodosDirectosMatriz;
 import servicios.MetodosIterativosMatriz;
 import javafx.scene.input.KeyCode;
 
+import java.io.File;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Scanner;
 
 public class AppGUI extends Application {
 
@@ -47,7 +51,7 @@ public class AppGUI extends Application {
         Paleta.PIVOTE_BG, Paleta.PIVOTE_BORDE);
     private final String ESTILO_COL_VERDE_AGUA = String.format(
         "-fx-background-color: %s; -fx-border-color: %s; -fx-border-width: 2; -fx-background-radius: 6; -fx-text-fill: %s; -fx-font-weight: bold;",
-        Paleta.CELDA_L_BG, Paleta.CELDA_L_BORDE, Paleta.CELDA_L_TEXTO);
+        "#e8f6f3", "#1abc9c", "#16a085");
     private final String ESTILO_NORMAL = "-fx-background-color: #FFFFFF; -fx-border-color: #E2E8F0; -fx-background-radius: 6; -fx-text-fill: #1E293B;";
     private final String ESTILO_VECTOR_B = "-fx-background-color: #FFFFFF; -fx-border-color: transparent transparent transparent #06B6D4; -fx-border-width: 0 0 0 3; -fx-background-radius: 6; -fx-text-fill: #1E293B;";
     private final String ESTILO_CELDA_VACIA_RES = String.format(
@@ -217,8 +221,15 @@ public class AppGUI extends Application {
             setMetodoActivo(null);
             limpiarPantalla();
         });
+        
+        // --- RESTAURADO: Importador TXT ---
+        Button btnImportar = crearBotonLimpiar("Importar TXT");
+        btnImportar.setOnAction(e -> cargarMatrizDesdeTXT(stage));
 
-        barraControles.getChildren().addAll(lblTamanio, spinnerN, btnRandom, btnLimpiar);
+        Region espaciadorBarra = new Region();
+        HBox.setHgrow(espaciadorBarra, Priority.ALWAYS);
+
+        barraControles.getChildren().addAll(lblTamanio, spinnerN, btnRandom, btnLimpiar, espaciadorBarra, btnImportar);
 
         contenidoGlobal = new VBox(15);
         contenidoGlobal.setAlignment(Pos.TOP_CENTER);
@@ -380,13 +391,17 @@ public class AppGUI extends Application {
 
         generarCuadricula();
 
+        // Ensamblaje central restaurado para no superponer paneles compactos
+        HBox panelMatrizYResultados = new HBox(30); 
+        panelMatrizYResultados.setAlignment(Pos.CENTER);
+        panelMatrizYResultados.getChildren().addAll(envolturaMatriz, panelResultado);
+
         contenidoGlobal.getChildren().addAll(
             lblMetodoActivo,
             tituloMatriz,
             lblAlertaIngreso,
-            envolturaMatriz,
+            panelMatrizYResultados,
             contenedorResultadosVisuales,
-            panelResultado,
             acordeonPasos
         );
 
@@ -506,6 +521,53 @@ public class AppGUI extends Application {
         limpiarPantalla();
     }
 
+    // --- RESTAURADO: Carga desde TXT ---
+    private void cargarMatrizDesdeTXT(Stage stage) {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Abrir Matriz TXT");
+        fileChooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("Archivos de Texto", "*.txt"));
+        
+        File file = fileChooser.showOpenDialog(stage);
+        
+        if (file != null) {
+            try {
+                String contenido = new String(Files.readAllBytes(file.toPath())).replace(",", ".");
+                Scanner scanner = new Scanner(contenido);
+                
+                int i = 0;
+                int j = 0;
+                int columnasTotales = n + 1;
+                
+                while (scanner.hasNext() && i < n) {
+                    if (scanner.hasNextDouble()) {
+                        double valor = scanner.nextDouble();
+                        if (valor == (long) valor) {
+                            casillas[i][j].setText(String.format("%d", (long) valor));
+                        } else {
+                            casillas[i][j].setText(String.valueOf(valor));
+                        }
+                        
+                        j++;
+                        if (j == columnasTotales) {
+                            j = 0;
+                            i++;
+                        }
+                    } else {
+                        scanner.next(); 
+                    }
+                }
+                scanner.close();
+                
+                marcarBotonActivo(null);
+                setMetodoActivo("Archivo Cargado");
+                limpiarPantalla();
+                
+            } catch (Exception ex) {
+                mostrarError("Error de Archivo", "No se pudo leer el archivo TXT.");
+            }
+        }
+    }
+
     private static String estiloInput(boolean hasText, boolean focused, boolean esB) {
         if (focused) {
             if (hasText) return esB ? IN_FOCUS_LB : IN_FOCUS_L;
@@ -614,6 +676,17 @@ public class AppGUI extends Application {
         panelResultado.setVisible(false);
         lblAlertaIngreso.setVisible(false);
         lblAlertaIngreso.setManaged(false);
+        
+        // Limpiamos rastros de colores amarillos en las celdas principales
+        if (casillas != null) {
+            for (int i = 0; i < n; i++) {
+                for (int j = 0; j < n + 1; j++) {
+                    if (casillas[i][j] != null) {
+                        casillas[i][j].setStyle(j == n ? ESTILO_VECTOR_B : ESTILO_NORMAL);
+                    }
+                }
+            }
+        }
 
         vboxPasos.getChildren().clear();
         acordeonPasos.setVisible(false);
@@ -689,14 +762,36 @@ public class AppGUI extends Application {
         ft.play();
     }
 
-    private void mostrarExito(String titulo, String detalle) {
+    // --- RESTAURADO: Cartel Universal (Lateral o Ancho) ---
+    private void mostrarExito(String titulo, String detalle, boolean esVectorX) {
         panelResultado.setStyle("-fx-background-color: " + Paleta.EXITO_FONDO + "; -fx-border-color: " + Paleta.EXITO_BORDE + "; -fx-border-radius: 10; -fx-background-radius: 10; -fx-border-width: 1;");
         lblEstado.setTextFill(Paleta.color(Paleta.EXITO_TEXTO));
         lblEstado.setText("✔ " + titulo);
         lblDetalle.setTextFill(Paleta.color(Paleta.TEXTO_PRINCIPAL));
+        
+        HBox panelHBox = (HBox) envolturaMatriz.getParent();
+        panelHBox.getChildren().remove(panelResultado);
+        contenidoGlobal.getChildren().remove(panelResultado);
+        
+        if (esVectorX) {
+            detalle = detalle.replace("   |   ", "\n");
+            lblDetalle.setTextAlignment(javafx.scene.text.TextAlignment.LEFT);
+            panelResultado.setMaxWidth(200); 
+            panelHBox.getChildren().add(panelResultado);
+        } else {
+            lblDetalle.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+            panelResultado.setMaxWidth(600); 
+            contenidoGlobal.getChildren().add(panelResultado);
+        }
+        
         lblDetalle.setText(detalle);
         panelResultado.setVisible(true);
         animarAparicion(panelResultado);
+    }
+    
+    // Método sobrecargado por si tus compañeros lo usaron sin el boolean
+    private void mostrarExito(String titulo, String detalle) {
+        mostrarExito(titulo, detalle, false);
     }
 
     private void mostrarError(String titulo, String detalle) {
@@ -705,6 +800,12 @@ public class AppGUI extends Application {
         lblEstado.setText("✖ " + titulo);
         lblDetalle.setTextFill(Paleta.color(Paleta.ERROR_TEXTO));
         lblDetalle.setText(detalle);
+        
+        HBox panelHBox = (HBox) envolturaMatriz.getParent();
+        panelHBox.getChildren().remove(panelResultado);
+        contenidoGlobal.getChildren().remove(panelResultado);
+        contenidoGlobal.getChildren().add(panelResultado);
+        
         panelResultado.setVisible(true);
         animarAparicion(panelResultado);
     }
@@ -715,6 +816,12 @@ public class AppGUI extends Application {
         lblEstado.setText("⚠ Aviso");
         lblDetalle.setTextFill(Paleta.color(Paleta.ADVERTENCIA_TEXTO));
         lblDetalle.setText(mensaje);
+        
+        HBox panelHBox = (HBox) envolturaMatriz.getParent();
+        panelHBox.getChildren().remove(panelResultado);
+        contenidoGlobal.getChildren().remove(panelResultado);
+        contenidoGlobal.getChildren().add(panelResultado);
+        
         panelResultado.setVisible(true);
         animarAparicion(panelResultado);
     }
@@ -846,7 +953,21 @@ public class AppGUI extends Application {
             } catch (Exception ex) {
                 mathError = ex;
             }
-            animarGaussEliminacion(matrizAmp, tipoPivoteo, solucion, mathError);
+
+            int nLocal = matrizAmp.getCantFilas();
+            boolean animar = (nLocal <= 5);
+            
+            if (animar) {
+                if (tipoPivoteo == 2) {
+                    animarGaussTotal(matrizAmp, solucion, mathError);
+                } else {
+                    animarGaussParcialSimple(matrizAmp, tipoPivoteo, solucion, mathError);
+                }
+            } else if (mathError != null) {
+                mostrarError("Error Matemático", mathError.getMessage());
+            } else {
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
+            }
         } catch (NumberFormatException ex) {
             mostrarError("Error de Ingreso", "Asegúrese de ingresar solo números.");
         } catch (Exception ex) {
@@ -854,26 +975,26 @@ public class AppGUI extends Application {
         }
     }
 
-    private void animarGaussEliminacion(Matriz original, int tipoPivoteo, double[] solucion, Exception mathError) {
+    // --- RESTAURADO: Animación Visual Exclusiva Pivoteo Parcial y Simple ---
+    private void animarGaussParcialSimple(Matriz original, int tipoPivoteo, double[] solucion, Exception mathError) {
         int nLocal = original.getCantFilas();
         int cols = nLocal + 1;
 
-        List<double[][]> snapshots = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-        List<Integer> pivotRows = new ArrayList<>();
-        List<Integer> pivotCols = new ArrayList<>();
+        List<double[][]> snapshots  = new ArrayList<>();
+        List<String>     labels     = new ArrayList<>();
+        List<Integer>    pivotRows1 = new ArrayList<>();
+        List<Integer>    pivotRows2 = new ArrayList<>();
+        List<Integer>    columnaVerde = new ArrayList<>(); 
         List<PasoResolucion> pasosDoc = new ArrayList<>();
         int contador = 1;
 
         double[][] sim = new double[nLocal][cols];
         for (int i = 0; i < nLocal; i++)
-            for (int j = 0; j < cols; j++)
-                sim[i][j] = original.getElemento(i, j);
+            for (int j = 0; j < cols; j++) sim[i][j] = original.getElemento(i, j);
 
         snapshots.add(copiar(sim));
         labels.add("Matriz ampliada inicial");
-        pivotRows.add(-1);
-        pivotCols.add(-1);
+        pivotRows1.add(-1); pivotRows2.add(-1); columnaVerde.add(-1);
 
         PasoResolucion p0 = new PasoResolucion(contador++, "Matriz ampliada inicial [A|b]");
         p0.matriz = copiar(sim);
@@ -881,111 +1002,55 @@ public class AppGUI extends Application {
 
         for (int k = 0; k < nLocal - 1; k++) {
             int filaMayor = k;
-            int colMayor = k;
-
-            // Pivoteo SOLO si el pivote actual es 0 (o casi cero)
-            boolean pivoteNulo = Math.abs(sim[k][k]) < 1e-12;
-
-            if (pivoteNulo && tipoPivoteo == 1) {
-                // Pivoteo parcial: buscar mayor |a_ik| en la columna k
-                double maxValor = 0;
-                for (int i = k; i < nLocal; i++) {
-                    double va = Math.abs(sim[i][k]);
-                    if (va > maxValor) { maxValor = va; filaMayor = i; }
-                }
-                if (filaMayor != k) {
-                    // Fotograma: selección (fila resaltada)
-                    snapshots.add(copiar(sim));
-                    labels.add("Pivoteo: F" + (k+1) + " seleccionada ↔ F" + (filaMayor+1));
-                    pivotRows.add(k);
-                    pivotCols.add(-1);
-
-                    // Fotograma: intercambio
-                    for (int j = 0; j < cols; j++) { double t = sim[k][j]; sim[k][j] = sim[filaMayor][j]; sim[filaMayor][j] = t; }
-                    snapshots.add(copiar(sim));
-                    labels.add("Pivoteo: Intercambio F" + (k+1) + " ↔ F" + (filaMayor+1));
-                    pivotRows.add(k);
-                    pivotCols.add(-1);
-
-                    PasoResolucion pp = new PasoResolucion(contador++,
-                        "Pivoteo parcial · Intercambio F" + (k+1) + " ↔ F" + (filaMayor+1));
-                    pp.formulas.add("El pivote original era 0; se busca el mayor |aᵢ" + (k+1) + "|.");
-                    pp.formulas.add("Nuevo pivote: a[" + (k+1) + "][" + (k+1) + "] = " + fmt(sim[k][k]));
-                    pp.matriz = copiar(sim);
-                    pp.filaResaltada = k; pp.colResaltada = k;
-                    pasosDoc.add(pp);
-                }
-            } else if (pivoteNulo && tipoPivoteo == 2) {
-                // Pivoteo total: buscar mayor |a_ij| en la submatriz
-                double maxAbs = 0;
-                int bestI = k, bestJ = k;
-                for (int i = k; i < nLocal; i++)
-                    for (int j = k; j < nLocal; j++)
-                        if (Math.abs(sim[i][j]) > maxAbs) {
-                            maxAbs = Math.abs(sim[i][j]);
-                            bestI = i; bestJ = j;
-                        }
-
-                if (bestI != k) {
-                    // Fotograma: selección de fila
-                    snapshots.add(copiar(sim));
-                    labels.add("Pivoteo total: F" + (k+1) + " seleccionada ↔ F" + (bestI+1));
-                    pivotRows.add(k);
-                    pivotCols.add(-1);
-
-                    // Intercambio de filas
-                    for (int j = 0; j < cols; j++) { double t = sim[k][j]; sim[k][j] = sim[bestI][j]; sim[bestI][j] = t; }
-                    snapshots.add(copiar(sim));
-                    labels.add("Pivoteo total: Intercambio F" + (k+1) + " ↔ F" + (bestI+1));
-                    pivotRows.add(k);
-                    pivotCols.add(-1);
-                }
-                if (bestJ != k) {
-                    // Fotograma: selección de columna
-                    snapshots.add(copiar(sim));
-                    labels.add("Pivoteo total: C" + (k+1) + " seleccionada ↔ C" + (bestJ+1));
-                    pivotRows.add(-1);
-                    pivotCols.add(k);
-
-                    // Intercambio de columnas
-                    for (int i = 0; i < nLocal; i++) { double t = sim[i][k]; sim[i][k] = sim[i][bestJ]; sim[i][bestJ] = t; }
-                    snapshots.add(copiar(sim));
-                    labels.add("Pivoteo total: Intercambio C" + (k+1) + " ↔ C" + (bestJ+1));
-                    pivotRows.add(-1);
-                    pivotCols.add(k);
-                }
-                if (bestI != k || bestJ != k) {
-                    PasoResolucion pp = new PasoResolucion(contador++,
-                        "Pivoteo total · Pivote máximo en (" + (bestI+1) + "," + (bestJ+1) + ")");
-                    pp.formulas.add("El pivote original era 0; se busca el mayor |aᵢⱼ| en la submatriz.");
-                    pp.formulas.add("Pivote total = " + fmt(sim[k][k]));
-                    pp.matriz = copiar(sim);
-                    pp.filaResaltada = k; pp.colResaltada = k;
-                    pasosDoc.add(pp);
+            double maxValor = Math.abs(sim[k][k]);
+            
+            for (int i = k + 1; i < nLocal; i++) {
+                double va = Math.abs(sim[i][k]);
+                if ((tipoPivoteo == 1 && va > maxValor) ||
+                    (tipoPivoteo == 3 && maxValor < 1e-12 && va > 1e-12)) {
+                    maxValor = va;
+                    filaMayor = i;
                 }
             }
 
-            // Eliminación Gaussiana
+            if (filaMayor != k) {
+                snapshots.add(copiar(sim));
+                labels.add("Pivoteo: Filas a intercambiar F" + (k + 1) + " y F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor); columnaVerde.add(k);
+
+                for (int j = 0; j < cols; j++) {
+                    double tmp = sim[k][j];
+                    sim[k][j] = sim[filaMayor][j];
+                    sim[filaMayor][j] = tmp;
+                }
+                
+                snapshots.add(copiar(sim));
+                labels.add("Pivoteo: Intercambio F" + (k + 1) + " ↔ F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor); columnaVerde.add(k);
+                
+                PasoResolucion pp = new PasoResolucion(contador++, "Pivoteo · Intercambio F" + (k+1) + " ↔ F" + (filaMayor+1));
+                pp.formulas.add("Nuevo pivote: a[" + (k+1) + "][" + (k+1) + "] = " + fmt(sim[k][k]));
+                pp.matriz = copiar(sim);
+                pp.filaResaltada = k; pp.colResaltada = k;
+                pasosDoc.add(pp);
+            }
+
             if (Math.abs(sim[k][k]) > 1e-12) {
                 for (int i = k + 1; i < nLocal; i++) {
                     double m = sim[i][k] / sim[k][k];
                     double aAntes = sim[i][k];
                     double pivVal = sim[k][k];
                     for (int j = k; j < cols; j++) sim[i][j] -= m * sim[k][j];
-
-                    snapshots.add(copiar(sim));
-                    labels.add("Paso " + (k+1) + ": eliminación bajo pivote F" + (k+1));
-                    pivotRows.add(k);
-                    pivotCols.add(-1);
-
-                    PasoResolucion pe = new PasoResolucion(contador++,
-                        "Eliminación · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
-                    pe.formulas.add("m" + (i+1) + (k+1) + " = a" + (i+1) + (k+1) + " / a" + (k+1) + (k+1)
-                                  + " = " + fmt(aAntes) + " / " + fmt(pivVal) + " = " + fmt(m));
+                    
+                    PasoResolucion pe = new PasoResolucion(contador++, "Eliminación · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
+                    pe.formulas.add("m" + (i+1) + (k+1) + " = " + fmt(aAntes) + " / " + fmt(pivVal) + " = " + fmt(m));
                     pe.matriz = copiar(sim);
                     pe.filaResaltada = k; pe.colResaltada = k;
                     pasosDoc.add(pe);
                 }
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": eliminación bajo pivote F" + (k + 1));
+                pivotRows1.add(-1); pivotRows2.add(-1); columnaVerde.add(-1);
             }
         }
 
@@ -1014,28 +1079,25 @@ public class AppGUI extends Application {
         animarAparicion(bloqueVisual);
 
         Timeline timeline = new Timeline();
-        double stepDelay = 0.8;
+        double stepDelay = 0.7;
 
         for (int s = 1; s < snapshots.size(); s++) {
             final double[][] snap = snapshots.get(s);
             final String lbl = labels.get(s);
-            final int pRow = pivotRows.get(s);
-            final int pCol = pivotCols.get(s);
-            final int idx = s;
+            final int pRow1 = pivotRows1.get(s);
+            final int pRow2 = pivotRows2.get(s);
+            final int pCol = columnaVerde.get(s);
 
-            KeyFrame frame = new KeyFrame(Duration.seconds(stepDelay * idx), e -> {
+            KeyFrame frame = new KeyFrame(Duration.seconds(stepDelay * s), e -> {
                 lblPaso.setText(lbl);
                 for (int i = 0; i < nLocal; i++) {
                     for (int j = 0; j < cols; j++) {
                         celdas[i][j].setText(String.format("%.2f", snap[i][j]));
 
-                        if (pRow != -1 && i == pRow && pCol != -1 && j == pCol) {
-                            // Fila Y columna resaltadas (pivote total: ambos)
-                            celdas[i][j].setStyle(ESTILO_PIVOTE);
-                        } else if (pRow != -1 && i == pRow) {
-                            celdas[i][j].setStyle(ESTILO_PIVOTE);
+                        if (pRow1 != -1 && (i == pRow1 || i == pRow2)) {
+                            celdas[i][j].setStyle(ESTILO_PIVOTE); 
                         } else if (pCol != -1 && j == pCol) {
-                            celdas[i][j].setStyle(ESTILO_COL_VERDE_AGUA);
+                            celdas[i][j].setStyle(ESTILO_COL_VERDE_AGUA); 
                         } else if (j == cols - 1) {
                             celdas[i][j].setStyle(ESTILO_VECTOR_B);
                         } else {
@@ -1048,14 +1110,180 @@ public class AppGUI extends Application {
         }
 
         double finalDelay = stepDelay * snapshots.size();
-        final double[] finalSol = solucion;
-        final Exception finalError = mathError;
         KeyFrame fin = new KeyFrame(Duration.seconds(finalDelay), e -> {
-            lblPaso.setText("Proceso finalizado");
-            if (finalError != null) {
-                mostrarError("Error Matemático", finalError.getMessage());
+            lblPaso.setText("Triangulación finalizada");
+            if (mathError != null) {
+                mostrarError("Error Matemático", mathError.getMessage());
             } else {
-                mostrarExito("Sistema Resuelto (Gauss)", formatSolucion(finalSol));
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
+            }
+            mostrarPasosEnAcordeon(pasosDoc);
+        });
+        timeline.getKeyFrames().add(fin);
+        timelineActivo = timeline;
+        timeline.play();
+    }
+
+    // --- RESTAURADO: Animación Visual Exclusiva Pivoteo Total ---
+    private void animarGaussTotal(Matriz original, double[] solucion, Exception mathError) {
+        int nLocal = original.getCantFilas();
+        int cols = nLocal + 1;
+
+        List<double[][]> snapshots  = new ArrayList<>();
+        List<String>     labels     = new ArrayList<>();
+        List<Integer>    pivotRows1 = new ArrayList<>();
+        List<Integer>    pivotRows2 = new ArrayList<>();
+        List<Integer>    pivotCols1 = new ArrayList<>();
+        List<Integer>    pivotCols2 = new ArrayList<>();
+        List<PasoResolucion> pasosDoc = new ArrayList<>();
+        int contador = 1;
+
+        double[][] sim = new double[nLocal][cols];
+        for (int i = 0; i < nLocal; i++)
+            for (int j = 0; j < cols; j++) sim[i][j] = original.getElemento(i, j);
+
+        snapshots.add(copiar(sim));
+        labels.add("Matriz ampliada inicial");
+        pivotRows1.add(-1); pivotRows2.add(-1); pivotCols1.add(-1); pivotCols2.add(-1);
+        
+        PasoResolucion p0 = new PasoResolucion(contador++, "Matriz ampliada inicial [A|b]");
+        p0.matriz = copiar(sim);
+        pasosDoc.add(p0);
+
+        for (int k = 0; k < nLocal - 1; k++) {
+            int filaMayor = k, colMayor = k;
+            double maxValor = Math.abs(sim[k][k]);
+
+            for (int i = k; i < nLocal; i++) {
+                for (int j = k; j < nLocal; j++) {
+                    if (Math.abs(sim[i][j]) > maxValor) {
+                        maxValor = Math.abs(sim[i][j]);
+                        filaMayor = i;
+                        colMayor = j;
+                    }
+                }
+            }
+
+            if (filaMayor != k) {
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": filas seleccionadas F" + (k + 1) + " ↔ F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor); pivotCols1.add(-1); pivotCols2.add(-1);
+
+                for (int j = 0; j < cols; j++) {
+                    double tmp = sim[k][j]; sim[k][j] = sim[filaMayor][j]; sim[filaMayor][j] = tmp;
+                }
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": intercambio F" + (k + 1) + " ↔ F" + (filaMayor + 1));
+                pivotRows1.add(k); pivotRows2.add(filaMayor); pivotCols1.add(-1); pivotCols2.add(-1);
+            }
+
+            if (colMayor != k) {
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": columnas seleccionadas C" + (k + 1) + " ↔ C" + (colMayor + 1));
+                pivotRows1.add(-1); pivotRows2.add(-1); pivotCols1.add(k); pivotCols2.add(colMayor);
+
+                for (int i = 0; i < nLocal; i++) {
+                    double tmp = sim[i][k]; sim[i][k] = sim[i][colMayor]; sim[i][colMayor] = tmp;
+                }
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": intercambio C" + (k + 1) + " ↔ C" + (colMayor + 1));
+                pivotRows1.add(-1); pivotRows2.add(-1); pivotCols1.add(k); pivotCols2.add(colMayor);
+            }
+            
+            if (filaMayor != k || colMayor != k) {
+                PasoResolucion pp = new PasoResolucion(contador++, "Pivoteo total · Pivote máximo en (" + (filaMayor+1) + "," + (colMayor+1) + ")");
+                pp.formulas.add("Pivote total = " + fmt(sim[k][k]));
+                pp.matriz = copiar(sim);
+                pp.filaResaltada = k; pp.colResaltada = k;
+                pasosDoc.add(pp);
+            }
+
+            if (Math.abs(sim[k][k]) > 1e-12) {
+                for (int i = k + 1; i < nLocal; i++) {
+                    double m = sim[i][k] / sim[k][k];
+                    double aAntes = sim[i][k];
+                    double pivVal = sim[k][k];
+                    for (int j = k; j < cols; j++) sim[i][j] -= m * sim[k][j];
+                    
+                    PasoResolucion pe = new PasoResolucion(contador++, "Eliminación · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
+                    pe.formulas.add("m" + (i+1) + (k+1) + " = " + fmt(aAntes) + " / " + fmt(pivVal) + " = " + fmt(m));
+                    pe.matriz = copiar(sim);
+                    pe.filaResaltada = k; pe.colResaltada = k;
+                    pasosDoc.add(pe);
+                }
+                snapshots.add(copiar(sim));
+                labels.add("Paso " + (k + 1) + ": eliminación bajo pivote F" + (k + 1));
+                pivotRows1.add(-1); pivotRows2.add(-1); pivotCols1.add(-1); pivotCols2.add(-1);
+            }
+        }
+
+        GridPane gridSim = new GridPane();
+        gridSim.setAlignment(Pos.CENTER);
+        gridSim.setHgap(4); gridSim.setVgap(4);
+
+        TextField[][] celdas = new TextField[nLocal][cols];
+        for (int i = 0; i < nLocal; i++) {
+            for (int j = 0; j < cols; j++) {
+                celdas[i][j] = crearCeldaResultados();
+                celdas[i][j].setText(String.format("%.2f", snapshots.get(0)[i][j]));
+                if (j == cols - 1) celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                gridSim.add(celdas[i][j], j, i);
+            }
+        }
+
+        Label lblPaso = new Label(labels.get(0));
+        lblPaso.setTextFill(Paleta.color(Paleta.TEXTO_SECUNDARIO));
+        lblPaso.setFont(Font.font(FUENTE_UI, FontWeight.BOLD, 14));
+
+        HBox envoltura = envolverEnParentesis(gridSim);
+        VBox bloqueVisual = new VBox(10, lblPaso, envoltura);
+        bloqueVisual.setAlignment(Pos.CENTER);
+
+        contenedorResultadosVisuales.getChildren().add(bloqueVisual);
+        animarAparicion(bloqueVisual);
+
+        Timeline timeline = new Timeline();
+        double stepDelay = 0.7;
+
+        for (int s = 1; s < snapshots.size(); s++) {
+            final double[][] snap = snapshots.get(s);
+            final String lbl = labels.get(s);
+            final int pRow1 = pivotRows1.get(s);
+            final int pRow2 = pivotRows2.get(s);
+            final int pCol1 = pivotCols1.get(s);
+            final int pCol2 = pivotCols2.get(s);
+
+            KeyFrame frame = new KeyFrame(Duration.seconds(stepDelay * s), e -> {
+                lblPaso.setText(lbl);
+                for (int i = 0; i < nLocal; i++) {
+                    for (int j = 0; j < cols; j++) {
+                        celdas[i][j].setText(String.format("%.2f", snap[i][j]));
+
+                        if (pRow1 != -1 && pRow2 != -1) {
+                            if (i == pRow1 || i == pRow2) celdas[i][j].setStyle(ESTILO_PIVOTE);
+                            else if (j == cols - 1) celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                            else celdas[i][j].setStyle(ESTILO_NORMAL);
+                        } else if (pCol1 != -1 && pCol2 != -1) {
+                            if (j == pCol1 || j == pCol2) celdas[i][j].setStyle(ESTILO_COL_VERDE_AGUA);
+                            else if (j == cols - 1) celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                            else celdas[i][j].setStyle(ESTILO_NORMAL);
+                        } else {
+                            if (j == cols - 1) celdas[i][j].setStyle(ESTILO_VECTOR_B);
+                            else celdas[i][j].setStyle(ESTILO_NORMAL);
+                        }
+                    }
+                }
+            });
+            timeline.getKeyFrames().add(frame);
+        }
+
+        double finalDelay = stepDelay * snapshots.size();
+        KeyFrame fin = new KeyFrame(Duration.seconds(finalDelay), e -> {
+            lblPaso.setText("Triangulación finalizada");
+            if (mathError != null) {
+                mostrarError("Error Matemático", mathError.getMessage());
+            } else {
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
             }
             mostrarPasosEnAcordeon(pasosDoc);
         });
@@ -1091,9 +1319,7 @@ public class AppGUI extends Application {
 
                 if (piv != k) {
                     double[] tmp = M[k]; M[k] = M[piv]; M[piv] = tmp;
-                    PasoResolucion pp = new PasoResolucion(contador++,
-                        "Pivoteo parcial · Intercambio F" + (k+1) + " ↔ F" + (piv+1));
-                    pp.formulas.add("Se busca el mayor |aᵢ" + (k+1) + "| para evitar división por cero.");
+                    PasoResolucion pp = new PasoResolucion(contador++, "Pivoteo parcial · Intercambio F" + (k+1) + " ↔ F" + (piv+1));
                     pp.formulas.add("Nuevo pivote: a[" + (k+1) + "][" + (k+1) + "] = " + fmt(M[k][k]));
                     pp.matriz = copiar(M);
                     pp.filaResaltada = k; pp.colResaltada = k;
@@ -1109,13 +1335,9 @@ public class AppGUI extends Application {
                 for (int i = k + 1; i < nLocal; i++) {
                     if (Math.abs(M[i][k]) < 1e-14) continue;
                     double m = M[i][k] / M[k][k];
-                    double aAntes = M[i][k];
-                    double pivVal = M[k][k];
                     for (int j = k; j < cols; j++) M[i][j] -= m * M[k][j];
 
-                    PasoResolucion pe = new PasoResolucion(contador++,
-                        "Eliminación · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
-                    pe.formulas.add("m" + (i+1) + (k+1) + " = " + fmt(aAntes) + " / " + fmt(pivVal) + " = " + fmt(m));
+                    PasoResolucion pe = new PasoResolucion(contador++, "Eliminación · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
                     pe.matriz = copiar(M);
                     pe.filaResaltada = k; pe.colResaltada = k;
                     pasos.add(pe);
@@ -1132,9 +1354,7 @@ public class AppGUI extends Application {
                 double inv = 1.0 / pivote;
                 for (int j = 0; j < cols; j++) M[k][j] *= inv;
 
-                PasoResolucion pn = new PasoResolucion(contador++,
-                    "Normalización · F" + (k+1) + " ← F" + (k+1) + " / (" + fmt(pivote) + ")");
-                pn.formulas.add("Se hace a" + (k+1) + (k+1) + " = 1.");
+                PasoResolucion pn = new PasoResolucion(contador++, "Normalización · F" + (k+1) + " ← F" + (k+1) + " / (" + fmt(pivote) + ")");
                 pn.matriz = copiar(M);
                 pn.filaResaltada = k; pn.colResaltada = k;
                 pasos.add(pn);
@@ -1144,9 +1364,7 @@ public class AppGUI extends Application {
                     double m = M[i][k];
                     for (int j = 0; j < cols; j++) M[i][j] -= m * M[k][j];
 
-                    PasoResolucion pu = new PasoResolucion(contador++,
-                        "Eliminación hacia arriba · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
-                    pu.formulas.add("Se anula a[" + (i+1) + "][" + (k+1) + "].");
+                    PasoResolucion pu = new PasoResolucion(contador++, "Eliminación hacia arriba · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
                     pu.matriz = copiar(M);
                     pu.filaResaltada = k; pu.colResaltada = k;
                     pasos.add(pu);
@@ -1161,7 +1379,7 @@ public class AppGUI extends Application {
                 sb.append("x").append(i + 1).append(" = ").append(String.format("%.4f", sol[i]));
                 if (i < sol.length - 1) sb.append("   |   ");
             }
-            mostrarExito("Gauss-Jordan", sb.toString() + "\nDiagonal reducida a la identidad.");
+            mostrarExito("Gauss-Jordan", sb.toString() + "\nDiagonal reducida a la identidad.", true);
             mostrarPasosEnAcordeon(pasos);
 
         } catch (Exception ex) {
@@ -1175,7 +1393,7 @@ public class AppGUI extends Application {
         try {
             Matriz matrizA = leerMatrizDesdeInterfaz().extraerA();
             MetodosDirectosMatriz.ResultadoLU res = MetodosDirectosMatriz.factorizar_x_gauss(matrizA, 1);
-            animarDobleMatriz(res.L, res.U, "L", "U", "Factorización LU", res.huboPermutacion);
+            animarDobleMatriz(res.L, res.U, "L", "U", "Factorización LU", res.huboPermutacion, null);
         } catch (Exception ex) {
             mostrarError("Error Matemático", ex.getMessage());
         }
@@ -1207,20 +1425,23 @@ public class AppGUI extends Application {
         setMetodoActivo(esL1U ? "Crout · L1 · U" : "Crout · L · U1");
         limpiarPantalla();
         try {
-            Matriz matrizA = leerMatrizDesdeInterfaz().extraerA();
+            Matriz matrizAmp = leerMatrizDesdeInterfaz();
+            Matriz matrizA = matrizAmp.extraerA();
+            
+            double[] solucion = esL1U ? MetodosDirectosMatriz.CroutSolucionL1U(matrizAmp) : MetodosDirectosMatriz.CroutSolucionLU1(matrizAmp);
+
             if (esL1U) {
                 Matriz[] res = MetodosDirectosMatriz.factorizarCroutL1U(matrizA);
-                animarDobleMatriz(res[0], res[1], "L1", "U", "Crout (L1 · U)", false);
+                animarDobleMatriz(res[0], res[1], "L1", "U", "Crout (L1 · U)", false, solucion);
             } else {
                 Matriz[] res = MetodosDirectosMatriz.factorizarCroutLU1(matrizA);
-                animarDobleMatriz(res[0], res[1], "L", "U1", "Crout (L · U1)", false);
+                animarDobleMatriz(res[0], res[1], "L", "U1", "Crout (L · U1)", false, solucion);
             }
         } catch (Exception ex) {
             mostrarError("Error Matemático", ex.getMessage());
         }
     }
 
-    // ========== CHOLESKY: ahora también muestra la matriz L/U debajo de la matriz ampliada ==========
     private void ejecutarCholesky(boolean esL) {
         setMetodoActivo(esL ? "Cholesky · L · Lᵀ" : "Cholesky · Uᵀ · U");
         limpiarPantalla();
@@ -1232,8 +1453,7 @@ public class AppGUI extends Application {
             int nLocal = matrizAmp.getCantFilas();
             double[][] A = new double[nLocal][nLocal];
             for (int i = 0; i < nLocal; i++)
-                for (int j = 0; j < nLocal; j++)
-                    A[i][j] = matrizAmp.getElemento(i, j);
+                for (int j = 0; j < nLocal; j++) A[i][j] = matrizAmp.getElemento(i, j);
 
             List<PasoResolucion> pasos = new ArrayList<>();
             int cnt = 1;
@@ -1250,8 +1470,6 @@ public class AppGUI extends Application {
                         double val = Math.sqrt(A[i][i] - suma);
                         L[i][j] = val;
                         PasoResolucion p = new PasoResolucion(cnt++, "Diagonal L" + (i+1) + (i+1));
-                        p.formulas.add(String.format("L%d%d = √(a%d%d − Σ L%dk²)", i+1, i+1, i+1, i+1, i+1));
-                        p.formulas.add(String.format("= √(%s − %s) = %s", fmt(A[i][i]), fmt(suma), fmt(val)));
                         p.matriz = copiar(L);
                         p.filaResaltada = i; p.colResaltada = i;
                         pasos.add(p);
@@ -1259,8 +1477,6 @@ public class AppGUI extends Application {
                         double val = (A[i][j] - suma) / L[j][j];
                         L[i][j] = val;
                         PasoResolucion p = new PasoResolucion(cnt++, "Elemento L" + (i+1) + (j+1));
-                        p.formulas.add(String.format("L%d%d = (a%d%d − Σ L%dk·L%dk) / L%d%d", i+1, j+1, i+1, j+1, i+1, j+1, j+1, j+1));
-                        p.formulas.add(String.format("= (%s − %s) / %s = %s", fmt(A[i][j]), fmt(suma), fmt(L[j][j]), fmt(val)));
                         p.matriz = copiar(L);
                         p.filaResaltada = i; p.colResaltada = j;
                         pasos.add(p);
@@ -1268,7 +1484,6 @@ public class AppGUI extends Application {
                 }
             }
 
-            // ---- VISUAL debajo de la matriz ampliada: A -> L (o U) ----
             GridPane gridL = new GridPane();
             gridL.setAlignment(Pos.CENTER);
             gridL.setHgap(4); gridL.setVgap(4);
@@ -1310,7 +1525,6 @@ public class AppGUI extends Application {
             contenedorResultadosVisuales.getChildren().add(filaVisual);
             animarAparicion(filaVisual);
 
-            // Animación de llenado de L
             Timeline timeline = new Timeline();
             double delaySegundos = 0.0;
 
@@ -1327,15 +1541,8 @@ public class AppGUI extends Application {
                 }
             }
 
-            final String etq = etiquetaMatriz;
             KeyFrame fin = new KeyFrame(Duration.seconds(delaySegundos), e -> {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < solucion.length; i++) {
-                    sb.append("x").append(i + 1).append(" = ").append(String.format("%.4f", solucion[i]));
-                    if (i < solucion.length - 1) sb.append("   |   ");
-                }
-                mostrarExito("Sistema Resuelto (Cholesky " + etq + ")",
-                             sb.toString() + "\nMatriz " + etq + " extraída correctamente.");
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
                 mostrarPasosEnAcordeon(pasos);
             });
             timeline.getKeyFrames().add(fin);
@@ -1388,21 +1595,11 @@ public class AppGUI extends Application {
             double[] solucion = new double[n];
 
             switch (tipo) {
-                case JACOBI:
-                    solucion = MetodosIterativosMatriz.JacobiSolucion(matrizAmp, x0, tolerancia, maxIter);
-                    break;
-                case SEIDEL:
-                    solucion = MetodosIterativosMatriz.GaussSeidelSolucion(matrizAmp, x0, tolerancia, maxIter);
-                    break;
-                case SOR:
-                    solucion = MetodosIterativosMatriz.SORSolucion(matrizAmp, x0, omega, tolerancia, maxIter);
-                    break;
-                case RELAJACION:
-                    solucion = MetodosIterativosMatriz.Relajacion(matrizAmp, x0, tolerancia, maxIter);
-                    break;
-                case MEJORAMIENTO:
-                    solucion = MetodosIterativosMatriz.MejoramientoIterativo(matrizAmp, x0, tolerancia, maxIter);
-                    break;
+                case JACOBI: solucion = MetodosIterativosMatriz.JacobiSolucion(matrizAmp, x0, tolerancia, maxIter); break;
+                case SEIDEL: solucion = MetodosIterativosMatriz.GaussSeidelSolucion(matrizAmp, x0, tolerancia, maxIter); break;
+                case SOR: solucion = MetodosIterativosMatriz.SORSolucion(matrizAmp, x0, omega, tolerancia, maxIter); break;
+                case RELAJACION: solucion = MetodosIterativosMatriz.Relajacion(matrizAmp, x0, tolerancia, maxIter); break;
+                case MEJORAMIENTO: solucion = MetodosIterativosMatriz.MejoramientoIterativo(matrizAmp, x0, tolerancia, maxIter); break;
             }
 
             for (double val : solucion) {
@@ -1416,12 +1613,7 @@ public class AppGUI extends Application {
             List<PasoResolucion> pasos = new ArrayList<>();
             int iterCount = simularIteraciones(matrizAmp, x0, tolerancia, maxIter, omega, tipo, pasos);
 
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < solucion.length; i++) {
-                sb.append("x").append(i + 1).append(" = ").append(String.format("%.6f", solucion[i]));
-                if (i < solucion.length - 1) sb.append("   |   ");
-            }
-            mostrarExito(nombre + " (" + iterCount + " iter)", sb.toString());
+            mostrarExito(nombre + " (" + iterCount + " iter)", formatSolucion(solucion), true);
             mostrarPasosEnAcordeon(pasos);
 
         } catch (Exception ex) {
@@ -1465,19 +1657,10 @@ public class AppGUI extends Application {
 
                 if (tipo == Iteracion.SOR) {
                     val = (1 - omega) * x[i] + omega * valGauss;
-                    paso.formulas.add(String.format(
-                        "x%d = (1−ω)·x%d^(k) + ω·(b%d − Σ)/a%d%d",
-                        i + 1, i + 1, i + 1, i + 1, i + 1));
-                    paso.formulas.add(String.format(
-                        "     = (1−%s)(%s) + %s·((%s − (%s)) / %s)",
-                        fmt(omega), fmt(x[i]), fmt(omega), fmt(b), desglose.toString(), fmt(aii)));
-                    paso.formulas.add(String.format("     = %s", fmt(val)));
+                    paso.formulas.add(String.format("x%d = %s", i + 1, fmt(val)));
                 } else {
                     val = valGauss;
-                    String etiqueta = usaNuevos ? "^(k+1)" : "^(k)";
-                    paso.formulas.add(String.format(
-                        "x%d%s = (b%d − (%s)) / a%d%d = %s",
-                        i + 1, etiqueta, i + 1, desglose.toString(), i + 1, i + 1, fmt(val)));
+                    paso.formulas.add(String.format("x%d = %s", i + 1, fmt(val)));
                 }
 
                 xNew[i] = val;
@@ -1493,7 +1676,7 @@ public class AppGUI extends Application {
     }
 
     private void animarDobleMatriz(Matriz M1, Matriz M2, String nom1, String nom2,
-                                   String nombreMetodo, boolean huboPermutacion) {
+                                   String nombreMetodo, boolean huboPermutacion, double[] solucion) {
         GridPane gridCopia = new GridPane(); gridCopia.setAlignment(Pos.CENTER); gridCopia.setHgap(4); gridCopia.setVgap(4);
         GridPane gridM1 = new GridPane(); gridM1.setAlignment(Pos.CENTER); gridM1.setHgap(4); gridM1.setVgap(4);
         GridPane gridM2 = new GridPane(); gridM2.setAlignment(Pos.CENTER); gridM2.setHgap(4); gridM2.setVgap(4);
@@ -1538,16 +1721,12 @@ public class AppGUI extends Application {
 
         for (int k = 0; k < n; k++) {
             PasoResolucion pFila = new PasoResolucion(cnt++, "Fila " + (k + 1) + " de " + nom2);
-            for (int j = 0; j < n; j++)
-                pFila.formulas.add(String.format("%s%d%d = %s", nom2, k + 1, j + 1, fmt(U[k][j])));
             pFila.matriz = combinarLU(L, U, true);
             pFila.filaResaltada = k;
             pasos.add(pFila);
 
             if (k < n - 1) {
                 PasoResolucion pCol = new PasoResolucion(cnt++, "Columna " + (k + 1) + " de " + nom1);
-                for (int i = 0; i < n; i++)
-                    pCol.formulas.add(String.format("%s%d%d = %s", nom1, i + 1, k + 1, fmt(L[i][k])));
                 pCol.matriz = combinarLU(L, U, false);
                 pCol.colResaltada = k;
                 pasos.add(pCol);
@@ -1569,13 +1748,15 @@ public class AppGUI extends Application {
                     celdasM2[i][j].setStyle(i <= j ? ESTILO_U : ESTILO_CELDA_VACIA_RES);
                 }
             }
-            mostrarExito(nombreMetodo, "Matrices generadas al instante.\n" + (huboPermutacion ? "(Hubo permutación de filas)" : ""));
+            if (solucion != null) {
+                mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
+            } else {
+                mostrarExito(nombreMetodo, "Matrices generadas al instante.\n" + (huboPermutacion ? "(Hubo permutación de filas)" : ""), false);
+            }
             mostrarPasosEnAcordeon(pasos);
         } else {
             Timeline timeline = new Timeline();
             double delaySegundos = 0.0;
-
-            mostrarAdvertencia("Descomponiendo " + nombreMetodo + " paso a paso...");
 
             for (int i = 0; i < n; i++) {
                 for (int j = 0; j < n; j++) {
@@ -1600,7 +1781,11 @@ public class AppGUI extends Application {
             }
             final String finalMsg = msgExito;
             KeyFrame fin = new KeyFrame(Duration.seconds(delaySegundos), e -> {
-                mostrarExito(nombreMetodo, finalMsg);
+                if (solucion != null) {
+                    mostrarExito("Sistema Resuelto", formatSolucion(solucion), true);
+                } else {
+                    mostrarExito(nombreMetodo, finalMsg, false);
+                }
                 mostrarPasosEnAcordeon(pasos);
             });
             timeline.getKeyFrames().add(fin);
