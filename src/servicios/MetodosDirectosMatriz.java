@@ -1,5 +1,8 @@
 package servicios;
-import modelo.Matriz; 
+import modelo.Matriz;
+
+import static modelo.Matriz.TOLERANCIA_CERO;
+
 public class MetodosDirectosMatriz {
 	// ==========================================
     // MÉTODO 1: factorizarLU 
@@ -25,7 +28,7 @@ public class MetodosDirectosMatriz {
             }
             
             // FIX: La validación del pivote nulo DEBE hacerse sobre U, no sobre A
-            if (Math.abs(U.getElemento(k, k)) < 1e-12) {
+            if (Math.abs(U.getElemento(k, k)) < TOLERANCIA_CERO) {
               throw new ArithmeticException("Pivote cero en fila " + k + ". La matriz es singular.");
             }
 
@@ -49,9 +52,9 @@ public class MetodosDirectosMatriz {
         double[] x = new double[n];
 
         for(int k = 0; k < n; k++) {
-            if (Math.abs(Ab.getElemento(k, k)) < 1e-12) {
+            if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
                 Ab.pivoteoParcial(k); 
-                if (Math.abs(Ab.getElemento(k, k)) < 1e-12) {
+                if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
                     throw new ArithmeticException("Sistema singular: No tiene solución única (pivote nulo en fila " + k + ").");
                 }
             }
@@ -74,9 +77,9 @@ public class MetodosDirectosMatriz {
         double[] x = new double[n];
 
         for(int k = 0; k < n; k++) {
-            if (Math.abs(Ab.getElemento(k, k)) < 1e-12) {
+            if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
                 Ab.pivoteoParcial(k);
-                if (Math.abs(Ab.getElemento(k, k)) < 1e-12) {
+                if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
                     throw new ArithmeticException("Sistema singular: No tiene solución única (pivote nulo en fila " + k + ").");
                 }
             }
@@ -117,7 +120,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        L.setElemento(i, k, A.getElemento(i, k) - suma);
 	      }
-	      if (Math.abs(L.getElemento(k, k)) < 1e-12) {
+	      if (Math.abs(L.getElemento(k, k)) < TOLERANCIA_CERO) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -156,7 +159,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        U.setElemento(k, j, A.getElemento(k, j) - suma);
 	      }
-	      if (Math.abs(U.getElemento(k, k)) < 1e-12) {
+	      if (Math.abs(U.getElemento(k, k)) < TOLERANCIA_CERO) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -196,7 +199,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        Uy.setElemento(k, j, Ab.getElemento(k, j) - suma);
 	      }
-	      if (Math.abs(Uy.getElemento(k, k)) < 1e-12) {
+	      if (Math.abs(Uy.getElemento(k, k)) < TOLERANCIA_CERO) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -235,7 +238,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        L.setElemento(i, k, Ab.getElemento(i, k) - suma);
 	      }
-	      if (Math.abs(L.getElemento(k, k)) < 1e-12) {
+	      if (Math.abs(L.getElemento(k, k)) < TOLERANCIA_CERO) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -339,7 +342,7 @@ public class MetodosDirectosMatriz {
 	  // Regla de entrada de los métodos que resuelven A * x = b: si det(A) = 0 el sistema
 	  // no tiene solución única (infinitas soluciones o ninguna)
 	  private static void validarSolucionUnica(Matriz Ab) {
-	    if (Math.abs(Ab.extraerA().determinante()) < 1e-12) {
+	    if (Math.abs(Ab.extraerA().determinante()) < TOLERANCIA_CERO) {
 	      throw new ArithmeticException("Error: det(A) = 0, el sistema no tiene solución única.");
 	    }
 	  }
@@ -352,7 +355,7 @@ public class MetodosDirectosMatriz {
 
 	  // Cláusula de escape: si el radicando no es positivo, A no es definida positiva
 	  private static double raizCholesky(double radicando, int k) {
-	    if (radicando < 1e-12) {
+	    if (radicando < TOLERANCIA_CERO) {
 	      throw new ArithmeticException(
 	          "Error: La matriz no es definida positiva (radicando no positivo en la fila " + k + ").");
 	    }
@@ -421,7 +424,7 @@ public class MetodosDirectosMatriz {
 	                ordenX[colMovida] = temp;
 	            }            
 	            
-	            if (Math.abs(G.getElemento(k, k)) < 1e-12) {
+	            if (Math.abs(G.getElemento(k, k)) < TOLERANCIA_CERO) {
 	                throw new ArithmeticException("Error: Pivote nulo encontrado en la fila " + k + ".");
 	            }
 	            
@@ -468,7 +471,7 @@ public class MetodosDirectosMatriz {
 	                for (int i = k + 1; i < n; i++) {
 	                    double valorActual = Math.abs(U.getElemento(i, k));
 	                    if ((tipoPiv == 1 && valorActual > maxValor) || 
-	                        (tipoPiv == 3 && maxValor < 1e-12 && valorActual > 0)) {
+	                        (tipoPiv == 3 && maxValor < TOLERANCIA_CERO && valorActual >= TOLERANCIA_CERO)) {
 	                        maxValor = valorActual;
 	                        filaMayor = i;
 	                    }
@@ -486,7 +489,7 @@ public class MetodosDirectosMatriz {
 	                }
 	            }
 
-	            if (Math.abs(U.getElemento(k, k)) < 1e-12) {
+	            if (Math.abs(U.getElemento(k, k)) < TOLERANCIA_CERO) {
 	                 throw new ArithmeticException("Error: Pivote nulo en fila " + k + ". La matriz es singular.");
 	            }
 	            

@@ -1,6 +1,9 @@
 package modelo;
 
 public class Matriz {
+    // Tolerancia para redondear a cero: |x| < TOLERANCIA_CERO se considera 0 (cerca del épsilon de double, ~2.2e-16)
+    public static final double TOLERANCIA_CERO = 1e-15;
+
     // Número de condición máximo para considerar una matriz bien condicionada
     public static double MAX_CONDICION = 50;
 
@@ -145,7 +148,7 @@ public class Matriz {
 	        Matriz T = this.transponer();
 	        for (int i = 0; i < this.cantFilas; i++) {
 	            for (int j = 0; j < this.cantColumnas; j++) {
-	                if (Math.abs(this.datos[i][j] - T.datos[i][j]) > 1e-12) {
+	                if (Math.abs(this.datos[i][j] - T.datos[i][j]) > TOLERANCIA_CERO) {
 	                    return false;
 	                }
 	            }
@@ -305,7 +308,7 @@ public class Matriz {
 	            double[] b = this.extraerB();
 	            double[] x = new double[this.cantFilas];
 	            for (int i = 0; i < this.cantFilas; i++) {
-	                if (datos[i][i] == 0) {
+	                if (Math.abs(datos[i][i]) < TOLERANCIA_CERO) {
 	                    throw new ArithmeticException("Error: Sistema singular (cero en la diagonal en fila " + i + ").");
 	                }
 	                x[i] = b[i] / datos[i][i];
@@ -322,7 +325,7 @@ public class Matriz {
 	            double[] x = new double[this.cantFilas];
 	            int limiteCol = this.cantColumnas - 1;
 	            for (int i = this.cantFilas - 1; i >= 0; i--) {
-	                if (datos[i][i] == 0) {
+	                if (Math.abs(datos[i][i]) < TOLERANCIA_CERO) {
 	                    throw new ArithmeticException("Error: Sistema singular (cero en la diagonal en fila " + i + ").");
 	                }
 	                double sumatoria = 0.0;
@@ -342,7 +345,7 @@ public class Matriz {
 	            double[] b = this.extraerB();
 	            double[] x = new double[this.cantFilas];
 	            for (int i = 0; i < this.cantFilas; i++) {
-	                if (datos[i][i] == 0.0) {
+	                if (Math.abs(datos[i][i]) < TOLERANCIA_CERO) {
 	                    throw new ArithmeticException("Error: Sistema singular (cero en la diagonal en fila " + i + ").");
 	                }
 	                double sumatoria = 0.0;
@@ -377,7 +380,7 @@ public class Matriz {
 	            }
 	            double pivote = M.datos[k][k];
 	            // Matriz singular: det = 0, no es un error
-	            if (Math.abs(pivote) < 1e-12) {
+	            if (Math.abs(pivote) < TOLERANCIA_CERO) {
 	                return 0.0;
 	            }
 	            det *= pivote;
@@ -405,12 +408,12 @@ public class Matriz {
 
 	        for (int k = 0; k < n; k++) {
 	            // Pivoteo solo si el pivote es nulo (mismo criterio que JordanSolucionDiagonalUnitaria)
-	            if (Math.abs(M.datos[k][k]) < 1e-12) {
+	            if (Math.abs(M.datos[k][k]) < TOLERANCIA_CERO) {
 	                int f = M.buscarFilaPivote(k);
 	                // El intercambio se aplica a las DOS matrices
 	                M.intercambiarFilas(k, f);
 	                I.intercambiarFilas(k, f);
-	                if (Math.abs(M.datos[k][k]) < 1e-12) {
+	                if (Math.abs(M.datos[k][k]) < TOLERANCIA_CERO) {
 	                    throw new ArithmeticException(
 	                        "Error: La matriz es singular (pivote nulo en fila " + k + "). No tiene inversa.");
 	                }
@@ -481,9 +484,9 @@ public class Matriz {
 	    }
 
 	    public void pivoteoSimple(int k) {
-	        if (Math.abs(datos[k][k]) < 1e-12) {
+	        if (Math.abs(datos[k][k]) < TOLERANCIA_CERO) {
 	            for (int i = k + 1; i < cantFilas; i++) {
-	                if (datos[i][k] != 0.0) {
+	                if (Math.abs(datos[i][k]) >= TOLERANCIA_CERO) {
 	                    interFilas(k, i);
 	                    break;
 	                }

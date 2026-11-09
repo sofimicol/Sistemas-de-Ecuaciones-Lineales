@@ -2,9 +2,9 @@ package servicios;
 
 import modelo.Matriz;
 
-public class MetodosIterativosMatriz {
+import static modelo.Matriz.TOLERANCIA_CERO;
 
-    private static final double EPSILON = 1e-12;
+public class MetodosIterativosMatriz {
 
     // ==== Jacobi ====
     public static double[] JacobiSolucion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
@@ -184,7 +184,7 @@ public class MetodosIterativosMatriz {
             double a_ii = Math.abs(A.getElemento(i, i));
             
             // Chequeo informático vital: evitar división por cero
-            if (a_ii < EPSILON) {
+            if (a_ii < TOLERANCIA_CERO) {
                 throw new ArithmeticException("Error: a_ii = 0 en la fila " + i + ". División por cero.");
             }
             
