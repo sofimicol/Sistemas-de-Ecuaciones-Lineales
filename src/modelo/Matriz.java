@@ -1,8 +1,8 @@
 package modelo;
 
 public class Matriz {
-    // Tolerancia para redondear a cero: |x| < TOLERANCIA_CERO se considera 0 (cerca del épsilon de double, ~2.2e-16)
-    public static final double TOLERANCIA_CERO = 1e-15;
+    // Épsilon de la máquina para double: 2^-52 ≈ 2.2e-16
+    public static final double EPSILON_MAQUINA = Math.ulp(1.0);
 
     // Número de condición máximo para considerar una matriz bien condicionada
     public static double MAX_CONDICION = 50;
@@ -145,10 +145,14 @@ public class Matriz {
 	        if (this.cantFilas != this.cantColumnas) {
 	            return false;
 	        }
+	        if (!this.contieneValoresValidos()) {
+	            return false;
+	        }
+	        double escala = this.normaCoeficientes();
 	        Matriz T = this.transponer();
 	        for (int i = 0; i < this.cantFilas; i++) {
 	            for (int j = 0; j < this.cantColumnas; j++) {
-	                if (Math.abs(this.datos[i][j] - T.datos[i][j]) > TOLERANCIA_CERO) {
+	                if (!esCero(this.datos[i][j] - T.datos[i][j], escala, this.cantFilas)) {
 	                    return false;
 	                }
 	            }
@@ -303,12 +307,19 @@ public class Matriz {
 	        }
 	    }
 
+	    // Sin argumento, decide los ceros de la diagonal con la escala de esta misma matriz.
+	    // Si el sistema triangular viene de una eliminación, conviene pasar la escala de la A original:
+	    // el crecimiento de los elementos durante la eliminación no debe contar como escala
 	    public double[] sistDiagonal() {
+	        return this.sistDiagonal(this.normaCoeficientes());
+	    }
+
+	    public double[] sistDiagonal(double escala) {
 	        if (this.esAmpliada()) {
 	            double[] b = this.extraerB();
 	            double[] x = new double[this.cantFilas];
 	            for (int i = 0; i < this.cantFilas; i++) {
-	                if (Math.abs(datos[i][i]) < TOLERANCIA_CERO) {
+	                if (esCero(datos[i][i], escala, this.cantFilas)) {
 	                    throw new ArithmeticException("Error: Sistema singular (cero en la diagonal en fila " + i + ").");
 	                }
 	                x[i] = b[i] / datos[i][i];
@@ -320,12 +331,16 @@ public class Matriz {
 	    }
 
 	    public double[] sustRegresiva() {
+	        return this.sustRegresiva(this.normaCoeficientes());
+	    }
+
+	    public double[] sustRegresiva(double escala) {
 	        if (this.esAmpliada()) {
 	            double[] b = this.extraerB();
 	            double[] x = new double[this.cantFilas];
 	            int limiteCol = this.cantColumnas - 1;
 	            for (int i = this.cantFilas - 1; i >= 0; i--) {
-	                if (Math.abs(datos[i][i]) < TOLERANCIA_CERO) {
+	                if (esCero(datos[i][i], escala, this.cantFilas)) {
 	                    throw new ArithmeticException("Error: Sistema singular (cero en la diagonal en fila " + i + ").");
 	                }
 	                double sumatoria = 0.0;
@@ -341,11 +356,15 @@ public class Matriz {
 	    }
 
 	    public double[] sustProgresiva() {
+	        return this.sustProgresiva(this.normaCoeficientes());
+	    }
+
+	    public double[] sustProgresiva(double escala) {
 	        if (this.esAmpliada()) {
 	            double[] b = this.extraerB();
 	            double[] x = new double[this.cantFilas];
 	            for (int i = 0; i < this.cantFilas; i++) {
-	                if (Math.abs(datos[i][i]) < TOLERANCIA_CERO) {
+	                if (esCero(datos[i][i], escala, this.cantFilas)) {
 	                    throw new ArithmeticException("Error: Sistema singular (cero en la diagonal en fila " + i + ").");
 	                }
 	                double sumatoria = 0.0;
@@ -360,30 +379,65 @@ public class Matriz {
 	        }
 	    }
 
+	    // det(A) = (-1)^intercambios * producto de los pivotes de la eliminación con pivoteo parcial.
+	    // Para decidir si A es singular usar esSingular(): det(αA) = α^n * det(A) depende de la escala
+	    // y puede dar 0 o Infinity por underflow/overflow aunque A esté bien condicionada
 	    public double determinante() {
 	        if (this.cantFilas != this.cantColumnas) {
 	            throw new UnsupportedOperationException(
 	                "Error: El determinante requiere una matriz cuadrada (n x n). " +
 	                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
 	        }
+	        this.validarValoresFinitos();
 
+	        int[] intercambios = new int[1];
 	        double det = 1.0;
+	        for (double pivote : this.pivotesConPivoteoParcial(intercambios)) {
+	            det *= pivote;
+	        }
+	        // Cada intercambio de filas cambia el signo del determinante
+	        return (intercambios[0] % 2 == 0) ? det : -det;
+	    }
+
+	    // A es numéricamente singular si algún pivote de la eliminación con pivoteo parcial es cero
+	    // frente a la escala de A (ver esCero). A diferencia de det(A), el resultado no cambia al escalar A
+	    public boolean esSingular() {
+	        if (this.cantFilas != this.cantColumnas) {
+	            throw new UnsupportedOperationException(
+	                "Error: La singularidad se define para una matriz cuadrada (n x n). " +
+	                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
+	        }
+	        this.validarValoresFinitos();
+
+	        double escala = this.normaCoeficientes();
+	        for (double pivote : this.pivotesConPivoteoParcial(null)) {
+	            if (esCero(pivote, escala, this.cantFilas)) {
+	                return true;
+	            }
+	        }
+	        return false;
+	    }
+
+	    // Eliminación gaussiana con pivoteo parcial sobre una copia de esta matriz cuadrada.
+	    // Retorna los pivotes u_kk; si intercambios no es null, cuenta en intercambios[0] los intercambios de filas
+	    private double[] pivotesConPivoteoParcial(int[] intercambios) {
 	        Matriz M = this.copiar();
 	        int n = M.cantFilas;
+	        double[] pivotes = new double[n];
 
 	        for (int k = 0; k < n; k++) {
-	            // Cada intercambio de filas cambia el signo del determinante
 	            int f = M.buscarFilaPivote(k);
 	            if (f != k) {
 	                M.intercambiarFilas(k, f);
-	                det = -det;
+	                if (intercambios != null) {
+	                    intercambios[0]++;
+	                }
 	            }
 	            double pivote = M.datos[k][k];
-	            // Matriz singular: det = 0, no es un error
-	            if (Math.abs(pivote) < TOLERANCIA_CERO) {
-	                return 0.0;
+	            pivotes[k] = pivote;
+	            if (pivote == 0.0) {
+	                continue; // el mayor de la columna es 0: no hay nada que eliminar debajo
 	            }
-	            det *= pivote;
 	            for (int i = k + 1; i < n; i++) {
 	                double m = M.datos[i][k] / pivote;
 	                for (int j = k; j < n; j++) {
@@ -391,7 +445,7 @@ public class Matriz {
 	                }
 	            }
 	        }
-	        return det;
+	        return pivotes;
 	    }
 
 	    // Gauss-Jordan con diagonal unitaria sobre una identidad adjunta: al terminar, I = A^-1
@@ -402,18 +456,20 @@ public class Matriz {
 	                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
 	        }
 
+	        this.validarValoresFinitos();
 	        int n = this.cantFilas;
+	        double escala = this.normaCoeficientes();
 	        Matriz M = this.copiar();       // no modificamos la matriz original
 	        Matriz I = Matriz.identidad(n); // matriz adjunta
 
 	        for (int k = 0; k < n; k++) {
 	            // Pivoteo solo si el pivote es nulo (mismo criterio que JordanSolucionDiagonalUnitaria)
-	            if (Math.abs(M.datos[k][k]) < TOLERANCIA_CERO) {
+	            if (esCero(M.datos[k][k], escala, n)) {
 	                int f = M.buscarFilaPivote(k);
 	                // El intercambio se aplica a las DOS matrices
 	                M.intercambiarFilas(k, f);
 	                I.intercambiarFilas(k, f);
-	                if (Math.abs(M.datos[k][k]) < TOLERANCIA_CERO) {
+	                if (esCero(M.datos[k][k], escala, n)) {
 	                    throw new ArithmeticException(
 	                        "Error: La matriz es singular (pivote nulo en fila " + k + "). No tiene inversa.");
 	                }
@@ -449,10 +505,18 @@ public class Matriz {
 	                "Dimensiones recibidas: " + this.cantFilas + "x" + this.cantColumnas + ".");
 	        }
 
+	        this.validarValoresFinitos();
+	        return this.normaCoeficientes();
+	    }
+
+	    // ||A||inf de los coeficientes: en una ampliada [A | b] no cuenta la columna b.
+	    // Es la escala con la que se decide si un pivote es cero (ver esCero)
+	    public double normaCoeficientes() {
+	        int columnas = this.esAmpliada() ? this.cantColumnas - 1 : this.cantColumnas;
 	        double maxSuma = 0.0;
 	        for (int i = 0; i < this.cantFilas; i++) {
 	            double sumaFila = 0.0;
-	            for (int j = 0; j < this.cantColumnas; j++) {
+	            for (int j = 0; j < columnas; j++) {
 	                sumaFila = sumaFila + Math.abs(datos[i][j]);
 	            }
 	            if (sumaFila > maxSuma) {
@@ -484,9 +548,10 @@ public class Matriz {
 	    }
 
 	    public void pivoteoSimple(int k) {
-	        if (Math.abs(datos[k][k]) < TOLERANCIA_CERO) {
+	        double escala = this.normaCoeficientes();
+	        if (esCero(datos[k][k], escala, cantFilas)) {
 	            for (int i = k + 1; i < cantFilas; i++) {
-	                if (Math.abs(datos[i][k]) >= TOLERANCIA_CERO) {
+	                if (!esCero(datos[i][k], escala, cantFilas)) {
 	                    interFilas(k, i);
 	                    break;
 	                }
@@ -535,5 +600,31 @@ public class Matriz {
 	
 	public boolean esCuadrada() {
 	    return this.cantFilas == this.cantColumnas;
+	}
+
+	// Cero dinámico: |valor| <= n * ε * escala, con escala = ||A||inf de la matriz con la que se opera.
+	// Escalar A por α escala también los pivotes y ||A||, así que el criterio no depende de las unidades;
+	// n * ε acompaña el redondeo de la eliminación, que crece con n (mismo criterio que LAPACK y MATLAB).
+	// Se escribe como !(|valor| > tolerancia) para que un NaN también cuente como cero
+	public static boolean esCero(double valor, double escala, int n) {
+	    return !(Math.abs(valor) > n * EPSILON_MAQUINA * escala);
+	}
+
+	// false si algún elemento es NaN o Infinity
+	public boolean contieneValoresValidos() {
+	    for (int i = 0; i < this.cantFilas; i++) {
+	        for (int j = 0; j < this.cantColumnas; j++) {
+	            if (!Double.isFinite(this.datos[i][j])) {
+	                return false;
+	            }
+	        }
+	    }
+	    return true;
+	}
+
+	public void validarValoresFinitos() {
+	    if (!this.contieneValoresValidos()) {
+	        throw new IllegalArgumentException("Error: La matriz contiene valores no finitos (NaN o Infinity).");
+	    }
 	}
 }

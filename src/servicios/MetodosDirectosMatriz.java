@@ -1,7 +1,7 @@
 package servicios;
 import modelo.Matriz;
 
-import static modelo.Matriz.TOLERANCIA_CERO;
+import static modelo.Matriz.esCero;
 
 public class MetodosDirectosMatriz {
 	// ==========================================
@@ -10,6 +10,7 @@ public class MetodosDirectosMatriz {
     public static Matriz[] factorizarLU(Matriz A_original) {
         Matriz A = A_original.copiar();
         int n = A.getCantFilas();
+        double escala = A.normaCoeficientes();
         Matriz L = new Matriz(n, n);
         Matriz U = new Matriz(n, n);
 
@@ -28,7 +29,7 @@ public class MetodosDirectosMatriz {
             }
             
             // FIX: La validación del pivote nulo DEBE hacerse sobre U, no sobre A
-            if (Math.abs(U.getElemento(k, k)) < TOLERANCIA_CERO) {
+            if (esCero(U.getElemento(k, k), escala, n)) {
               throw new ArithmeticException("Pivote cero en fila " + k + ". La matriz es singular.");
             }
 
@@ -49,12 +50,13 @@ public class MetodosDirectosMatriz {
     public static double[] JordanSolucion(Matriz Ab_original, int n) {
         validarSolucionUnica(Ab_original);
         Matriz Ab = Ab_original.copiar(); // FIX: Evita destruir la matriz de la Interfaz Gráfica
+        double escala = Ab.normaCoeficientes();
         double[] x = new double[n];
 
         for(int k = 0; k < n; k++) {
-            if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
+            if (esCero(Ab.getElemento(k, k), escala, n)) {
                 Ab.pivoteoParcial(k); 
-                if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
+                if (esCero(Ab.getElemento(k, k), escala, n)) {
                     throw new ArithmeticException("Sistema singular: No tiene solución única (pivote nulo en fila " + k + ").");
                 }
             }
@@ -67,19 +69,20 @@ public class MetodosDirectosMatriz {
                 }
             }
         }
-        x = Ab.sistDiagonal();
+        x = Ab.sistDiagonal(escala);
         return x;
     }
 
     public static double[] JordanSolucionDiagonalUnitaria(Matriz Ab_original, int n) {
         validarSolucionUnica(Ab_original);
         Matriz Ab = Ab_original.copiar(); // FIX: Evita destruir la matriz de la Interfaz Gráfica
+        double escala = Ab.normaCoeficientes();
         double[] x = new double[n];
 
         for(int k = 0; k < n; k++) {
-            if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
+            if (esCero(Ab.getElemento(k, k), escala, n)) {
                 Ab.pivoteoParcial(k);
-                if (Math.abs(Ab.getElemento(k, k)) < TOLERANCIA_CERO) {
+                if (esCero(Ab.getElemento(k, k), escala, n)) {
                     throw new ArithmeticException("Sistema singular: No tiene solución única (pivote nulo en fila " + k + ").");
                 }
             }
@@ -97,13 +100,14 @@ public class MetodosDirectosMatriz {
                 }
             }
         }
-        x = Ab.sistDiagonal();
+        x = Ab.sistDiagonal(); // la diagonal ya es unitaria: su escala propia es 1, no la de A
         return x;
     }
 
 	  // Crout: A = L * U1, con diagonal de U1 unitaria
 	  public static Matriz[] factorizarCroutLU1(Matriz A) {
 	    int n = A.getCantFilas();
+	    double escala = A.normaCoeficientes();
 	    Matriz L = new Matriz(n, n);
 	    Matriz U1 = new Matriz(n, n);
 
@@ -120,7 +124,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        L.setElemento(i, k, A.getElemento(i, k) - suma);
 	      }
-	      if (Math.abs(L.getElemento(k, k)) < TOLERANCIA_CERO) {
+	      if (esCero(L.getElemento(k, k), escala, n)) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -143,6 +147,7 @@ public class MetodosDirectosMatriz {
 	  // Crout: A = L1 * U, con diagonal de L1 unitaria
 	  public static Matriz[] factorizarCroutL1U(Matriz A) {
 	    int n = A.getCantFilas();
+	    double escala = A.normaCoeficientes();
 	    Matriz L1 = new Matriz(n, n);
 	    Matriz U = new Matriz(n, n);
 
@@ -159,7 +164,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        U.setElemento(k, j, A.getElemento(k, j) - suma);
 	      }
-	      if (Math.abs(U.getElemento(k, k)) < TOLERANCIA_CERO) {
+	      if (esCero(U.getElemento(k, k), escala, n)) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -183,6 +188,7 @@ public class MetodosDirectosMatriz {
 	  public static double[] CroutSolucionL1U(Matriz Ab) {
 	    validarSolucionUnica(Ab);
 	    int n = Ab.getCantFilas();
+	    double escala = Ab.normaCoeficientes();
 	    Matriz L1 = new Matriz(n, n);
 	    Matriz Uy = new Matriz(n, n + 1); // [U | y]
 
@@ -199,7 +205,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        Uy.setElemento(k, j, Ab.getElemento(k, j) - suma);
 	      }
-	      if (Math.abs(Uy.getElemento(k, k)) < TOLERANCIA_CERO) {
+	      if (esCero(Uy.getElemento(k, k), escala, n)) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -214,14 +220,16 @@ public class MetodosDirectosMatriz {
 	    }
 
 	    // Uy = [U | y] ya contiene y (solución de L1 * y = b), calculada en el bucle de U.
-	    // Retorna x, la solución de A * x = b, resolviendo U * x = y por sustitución regresiva
-	    return Uy.sustRegresiva();
+	    // Retorna x, la solución de A * x = b, resolviendo U * x = y por sustitución regresiva.
+	    // U está en las unidades de A: sus ceros se deciden con la escala de A
+	    return Uy.sustRegresiva(escala);
 	  }
 
 	  // Crout LU1 sobre [A | b]: la columna b se procesa con la fila de U1 y queda como y (L * y = b)
 	  public static double[] CroutSolucionLU1(Matriz Ab) {
 	    validarSolucionUnica(Ab);
 	    int n = Ab.getCantFilas();
+	    double escala = Ab.normaCoeficientes();
 	    Matriz L = new Matriz(n, n);
 	    Matriz U1y = new Matriz(n, n + 1); // [U1 | y]
 
@@ -238,7 +246,7 @@ public class MetodosDirectosMatriz {
 	        }
 	        L.setElemento(i, k, Ab.getElemento(i, k) - suma);
 	      }
-	      if (Math.abs(L.getElemento(k, k)) < TOLERANCIA_CERO) {
+	      if (esCero(L.getElemento(k, k), escala, n)) {
 	        throw new ArithmeticException("Error: Pivote nulo en la fila " + k + ". Crout sin pivoteo no es aplicable.");
 	      }
 
@@ -254,7 +262,7 @@ public class MetodosDirectosMatriz {
 
 	    // U1y = [U1 | y] ya contiene y (solución de L * y = b), calculada en el bucle de U1.
 	    // Retorna x, la solución de A * x = b, resolviendo U1 * x = y por sustitución regresiva
-	    return U1y.sustRegresiva();
+	    return U1y.sustRegresiva(); // U1 tiene diagonal unitaria: se usa su escala propia, no la de A
 	  }
 
 	  // Cholesky A = L * L^T para resolver A * x = b. La "fila adicional" de la cátedra (la que contiene a b)
@@ -263,8 +271,10 @@ public class MetodosDirectosMatriz {
 	    int n = Ab.getCantFilas();
 	    Matriz A = Ab.extraerA();
 	    double[] b = Ab.extraerB();
+	    Ab.validarValoresFinitos();
 	    validarSimetrica(A);
 	    validarSolucionUnica(Ab);
+	    double escala = A.normaCoeficientes();
 	    Matriz L = new Matriz(n, n);
 	    double[] y = new double[n];
 
@@ -274,7 +284,7 @@ public class MetodosDirectosMatriz {
 	      for (int j = 0; j < k; j++) {
 	        suma += L.getElemento(k, j) * L.getElemento(k, j);
 	      }
-	      L.setElemento(k, k, raizCholesky(A.getElemento(k, k) - suma, k));
+	      L.setElemento(k, k, raizCholesky(A.getElemento(k, k) - suma, k, escala, n));
 
 	      // Columna k de L, por debajo de la diagonal
 	      for (int i = k + 1; i < n; i++) {
@@ -302,7 +312,7 @@ public class MetodosDirectosMatriz {
 
 	    // y ya resuelve L * y = b. Retorna x, la solución de A * x = b,
 	    // resolviendo L^T * x = y por sustitución regresiva
-	    return LTy.sustRegresiva();
+	    return LTy.sustRegresiva(); // L^T está en unidades de raiz(A): se usa su escala propia
 	  }
 
 	  // Cholesky A = U^T * U para resolver A * x = b: la columna b se procesa con la fila de U y queda como y
@@ -310,8 +320,10 @@ public class MetodosDirectosMatriz {
 	    int n = Ab.getCantFilas();
 	    Matriz A = Ab.extraerA();
 	    double[] b = Ab.extraerB();
+	    Ab.validarValoresFinitos();
 	    validarSimetrica(A);
 	    validarSolucionUnica(Ab);
+	    double escala = A.normaCoeficientes();
 	    Matriz Uy = new Matriz(n, n + 1); // [U | y]
 
 	    for (int k = 0; k < n; k++) {
@@ -320,7 +332,7 @@ public class MetodosDirectosMatriz {
 	      for (int i = 0; i < k; i++) {
 	        suma += Uy.getElemento(i, k) * Uy.getElemento(i, k);
 	      }
-	      Uy.setElemento(k, k, raizCholesky(A.getElemento(k, k) - suma, k));
+	      Uy.setElemento(k, k, raizCholesky(A.getElemento(k, k) - suma, k, escala, n));
 
 	      // Fila k de U, incluyendo la columna de b
 	      for (int j = k + 1; j < n + 1; j++) {
@@ -335,15 +347,19 @@ public class MetodosDirectosMatriz {
 	    }
 
 	    // Uy = [U | y] ya contiene y (solución de U^T * y = b), calculada en el bucle de U.
-	    // Retorna x, la solución de A * x = b, resolviendo U * x = y por sustitución regresiva
+	    // Retorna x, la solución de A * x = b, resolviendo U * x = y por sustitución regresiva.
+	    // U está en unidades de raiz(A): se usa su escala propia
 	    return Uy.sustRegresiva();
 	  }
 
-	  // Regla de entrada de los métodos que resuelven A * x = b: si det(A) = 0 el sistema
-	  // no tiene solución única (infinitas soluciones o ninguna)
+	  // Regla de entrada de los métodos que resuelven A * x = b: los datos deben ser finitos y A no debe ser
+	  // singular, porque entonces el sistema no tiene solución única (infinitas soluciones o ninguna).
+	  // La singularidad se decide con los pivotes relativos a ||A|| (Matriz.esSingular) y no con det(A),
+	  // que depende de la escala: 0.1 * I de 50 x 50 tiene det = 1e-50 y está perfectamente condicionada
 	  private static void validarSolucionUnica(Matriz Ab) {
-	    if (Math.abs(Ab.extraerA().determinante()) < TOLERANCIA_CERO) {
-	      throw new ArithmeticException("Error: det(A) = 0, el sistema no tiene solución única.");
+	    Ab.validarValoresFinitos();
+	    if (Ab.extraerA().esSingular()) {
+	      throw new ArithmeticException("Error: A es singular (o numéricamente singular), el sistema no tiene solución única.");
 	    }
 	  }
 
@@ -353,9 +369,9 @@ public class MetodosDirectosMatriz {
 	    }
 	  }
 
-	  // Cláusula de escape: si el radicando no es positivo, A no es definida positiva
-	  private static double raizCholesky(double radicando, int k) {
-	    if (radicando < TOLERANCIA_CERO) {
+	  // Cláusula de escape: si el radicando no es positivo (o es cero frente a la escala de A), A no es definida positiva
+	  private static double raizCholesky(double radicando, int k, double escala, int n) {
+	    if (radicando < 0 || esCero(radicando, escala, n)) {
 	      throw new ArithmeticException(
 	          "Error: La matriz no es definida positiva (radicando no positivo en la fila " + k + ").");
 	    }
@@ -393,12 +409,14 @@ public class MetodosDirectosMatriz {
 	    // ============================================================
 
 	    private static double[] GaussSolucion (Matriz G_original, int tipoPiv) {
+	        G_original.validarValoresFinitos();
 	        Matriz G = G_original.copiar();
 	        Matriz coeficientes = G.extraerA();
 	        if (!coeficientes.esCuadrada()) {
 	            throw new IllegalArgumentException("Error: La matriz de coeficientes no es cuadrada. Ingreso incorrecto."); 
 	        }
 	        int n = G.getCantFilas();
+	        double escala = coeficientes.normaCoeficientes();
 	        int colsTotales = G.getCantColumnas(); 
 	        
 	        // Vector para registrar posibles cambios de columnas
@@ -424,7 +442,7 @@ public class MetodosDirectosMatriz {
 	                ordenX[colMovida] = temp;
 	            }            
 	            
-	            if (Math.abs(G.getElemento(k, k)) < TOLERANCIA_CERO) {
+	            if (esCero(G.getElemento(k, k), escala, n)) {
 	                throw new ArithmeticException("Error: Pivote nulo encontrado en la fila " + k + ".");
 	            }
 	            
@@ -439,8 +457,9 @@ public class MetodosDirectosMatriz {
 	            }
 	        }
 	        
-	        // Reutilizamos el método nativo
-	        double[] xParcial = G.sustRegresiva();
+	        // Reutilizamos el método nativo. Con la escala de la A original: el crecimiento de los
+	        // elementos durante la eliminación (ej. matriz de Wilkinson) no debe contar como escala
+	        double[] xParcial = G.sustRegresiva(escala);
 
 	        // Reordenamos el vector final basándonos en el registro
 	        double[] xFinal = new double[n];
@@ -458,6 +477,7 @@ public class MetodosDirectosMatriz {
 	            throw new UnsupportedOperationException("Error: Factorización LU clásica no soporta pivoteo total.");
 	        }
 	        int n = A_original.getCantFilas();
+	        double escala = A_original.normaCoeficientes();
 	        Matriz L = Matriz.identidad(n);
 	        Matriz U = A_original.copiar(); 
 	        boolean permutacionDetectada = false;
@@ -471,7 +491,7 @@ public class MetodosDirectosMatriz {
 	                for (int i = k + 1; i < n; i++) {
 	                    double valorActual = Math.abs(U.getElemento(i, k));
 	                    if ((tipoPiv == 1 && valorActual > maxValor) || 
-	                        (tipoPiv == 3 && maxValor < TOLERANCIA_CERO && valorActual >= TOLERANCIA_CERO)) {
+	                        (tipoPiv == 3 && esCero(maxValor, escala, n) && !esCero(valorActual, escala, n))) {
 	                        maxValor = valorActual;
 	                        filaMayor = i;
 	                    }
@@ -489,7 +509,7 @@ public class MetodosDirectosMatriz {
 	                }
 	            }
 
-	            if (Math.abs(U.getElemento(k, k)) < TOLERANCIA_CERO) {
+	            if (esCero(U.getElemento(k, k), escala, n)) {
 	                 throw new ArithmeticException("Error: Pivote nulo en fila " + k + ". La matriz es singular.");
 	            }
 	            

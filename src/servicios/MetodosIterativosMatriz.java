@@ -2,12 +2,13 @@ package servicios;
 
 import modelo.Matriz;
 
-import static modelo.Matriz.TOLERANCIA_CERO;
+import static modelo.Matriz.esCero;
 
 public class MetodosIterativosMatriz {
 
     // ==== Jacobi ====
     public static double[] JacobiSolucion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
         double[] b = Ab.extraerB();
@@ -45,6 +46,7 @@ public class MetodosIterativosMatriz {
 
     // ==== Gauss-Seidel ====
     public static double[] GaussSeidelSolucion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
         double[] b = Ab.extraerB();
@@ -86,6 +88,7 @@ public class MetodosIterativosMatriz {
         if (omega <= 0 || omega >= 2) {
             throw new IllegalArgumentException("Error: omega debe estar estrictamente en (0, 2).");
         }
+        Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
         double[] b = Ab.extraerB();
@@ -125,6 +128,7 @@ public class MetodosIterativosMatriz {
 
  // ==== Southwell (Relajación optimizado en memoria) ====
     public static double[] Relajacion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
         double[] b = Ab.extraerB();
@@ -178,13 +182,14 @@ public class MetodosIterativosMatriz {
     // ==== Chequeo Diagonal Dominante ====
     private static void verificarDiagonal(Matriz A) {
         int n = A.getCantFilas();
+        double escala = A.normaCoeficientes();
         boolean esDominante = true;
         
         for (int i = 0; i < n; i++) {
             double a_ii = Math.abs(A.getElemento(i, i));
             
             // Chequeo informático vital: evitar división por cero
-            if (a_ii < TOLERANCIA_CERO) {
+            if (esCero(a_ii, escala, n)) {
                 throw new ArithmeticException("Error: a_ii = 0 en la fila " + i + ". División por cero.");
             }
             
@@ -207,6 +212,7 @@ public class MetodosIterativosMatriz {
     
  // ==== Mejoramiento Iterativo ====
     public static double[] MejoramientoIterativo(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         double[] b = Ab.extraerB();
         int n = A.getCantFilas();

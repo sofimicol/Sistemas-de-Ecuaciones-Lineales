@@ -9,7 +9,6 @@ import static soporte.Verificar.matrizIgual;
 import static soporte.Verificar.vectorCercano;
 
 import modelo.Matriz;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -93,7 +92,6 @@ class MetodosDirectosMatrizTest {
         }
 
         // Ticket de QA 3.3 (Testeo-Julian.md): valores no finitos deben rechazarse antes de calcular
-        @Disabled("Bug conocido: un NaN en la matriz pasa la regla det(A) != 0 (Math.abs(NaN) < tol es false) y devuelve [NaN, NaN, NaN]")
         @Test
         @DisplayName("Un NaN en la matriz se rechaza")
         void nanSeRechaza() {
@@ -254,11 +252,31 @@ class MetodosDirectosMatrizTest {
     // Sistema simétrico y singular (fila 2 = 2 * fila 1) con b compatible: infinitas soluciones
     @ParameterizedTest(name = "{0}")
     @ValueSource(strings = {"Jordan", "JordanDiagonalUnitaria", "CroutL1U", "CroutLU1", "CholeskyL", "CholeskyU"})
-    @DisplayName("Regla det(A) != 0: infinitas soluciones se rechazan")
-    void reglaDeterminante(String metodo) {
+    @DisplayName("Regla de solución única: infinitas soluciones se rechazan")
+    void reglaSolucionUnica(String metodo) {
         Matriz Ab = new Matriz(new double[][]{{1, 2, 3}, {2, 4, 6}});
         ArithmeticException e = assertThrows(ArithmeticException.class, () -> resolver(metodo, Ab));
-        assertTrue(e.getMessage().contains("det(A)"), "debe cortar por la regla del determinante: " + e.getMessage());
+        assertTrue(e.getMessage().contains("solución única"), "debe cortar por la regla de solución única: " + e.getMessage());
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"Jordan", "JordanDiagonalUnitaria", "CroutL1U", "CroutLU1", "CholeskyL", "CholeskyU",
+        "GaussSimple", "GaussParcial", "GaussTotal"})
+    @DisplayName("Valores no finitos (NaN, Infinity) lanzan IllegalArgumentException")
+    void valoresNoFinitos(String metodo) {
+        Matriz conNaN = new Matriz(new double[][]{{4, Double.NaN, 1}, {Double.NaN, 3, 2}});
+        Matriz conInfinito = new Matriz(new double[][]{{4, 1, Double.POSITIVE_INFINITY}, {1, 3, 2}});
+        assertThrows(IllegalArgumentException.class, () -> resolver(metodo, conNaN));
+        assertThrows(IllegalArgumentException.class, () -> resolver(metodo, conInfinito));
+    }
+
+    // Hilbert 12 es simétrica definida positiva, pero cond(A) ~ 4e16 > 1/ε: numéricamente singular
+    @ParameterizedTest(name = "{0}")
+    @ValueSource(strings = {"Jordan", "JordanDiagonalUnitaria", "CroutL1U", "CroutLU1", "CholeskyL", "CholeskyU"})
+    @DisplayName("Regla de solución única: Hilbert 12 es numéricamente singular")
+    void hilbertNumericamenteSingular(String metodo) {
+        Matriz Ab = new Matriz(ampliar(soporte.SistemasConocidos.hilbert(12), new double[12]));
+        assertThrows(ArithmeticException.class, () -> resolver(metodo, Ab));
     }
 
     private static double[] resolver(String metodo, Matriz Ab) {
@@ -269,7 +287,10 @@ class MetodosDirectosMatrizTest {
             case "CroutL1U": return MetodosDirectosMatriz.CroutSolucionL1U(Ab);
             case "CroutLU1": return MetodosDirectosMatriz.CroutSolucionLU1(Ab);
             case "CholeskyL": return MetodosDirectosMatriz.CholeskySolucionL(Ab);
-            default: return MetodosDirectosMatriz.CholeskySolucionU(Ab);
+            case "CholeskyU": return MetodosDirectosMatriz.CholeskySolucionU(Ab);
+            case "GaussSimple": return MetodosDirectosMatriz.GaussPivoteoSimple(Ab);
+            case "GaussParcial": return MetodosDirectosMatriz.GaussPivoteoParcial(Ab);
+            default: return MetodosDirectosMatriz.GaussPivoteoTotal(Ab);
         }
     }
 

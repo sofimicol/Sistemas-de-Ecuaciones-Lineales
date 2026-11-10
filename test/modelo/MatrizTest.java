@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static soporte.Verificar.matrizCercana;
 import static soporte.Verificar.matrizIgual;
+import static soporte.SistemasConocidos.escalar;
+import static soporte.SistemasConocidos.hilbert;
+import static soporte.SistemasConocidos.poisson1D;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -373,6 +376,107 @@ class MatrizTest {
             Matriz original = new Matriz(AMPLIADA_2X3);
             matrizIgual(AMPLIADA_2X3, original.transponer().transponer());
             matrizIgual(AMPLIADA_2X3, original);
+        }
+    }
+
+    // Criterio dinámico: un pivote es cero si |u_kk| <= n * ε * ||A||inf (ver Matriz.esCero)
+    @Nested
+    @DisplayName("Singularidad (criterio relativo a la escala)")
+    class Singularidad {
+
+        private double[][] identidad(int n, double alfa) {
+            double[][] I = new double[n][n];
+            for (int i = 0; i < n; i++) {
+                I[i][i] = alfa;
+            }
+            return I;
+        }
+
+        @Test
+        @DisplayName("0.1 * I de 50 x 50 no es singular aunque det = 1e-50")
+        void identidadEscaladaNoEsSingular() {
+            Matriz A = new Matriz(identidad(50, 0.1));
+            assertFalse(A.esSingular());
+            assertEquals(1e-50, A.determinante(), 1e-50 * 1e-9);
+        }
+
+        @Test
+        @DisplayName("1e-20 * I no es singular aunque det da 0 por underflow")
+        void identidadDiminutaNoEsSingular() {
+            assertFalse(new Matriz(identidad(3, 1e-20)).esSingular());
+        }
+
+        @Test
+        @DisplayName("Escalar Poisson por 1e-20 o 1e20 no cambia el resultado")
+        void poissonEscaladaNoEsSingular() {
+            assertFalse(new Matriz(escalar(poisson1D(100), 1e-20)).esSingular());
+            assertFalse(new Matriz(escalar(poisson1D(100), 1e20)).esSingular());
+        }
+
+        @Test
+        @DisplayName("Hilbert 8 (cond ~ 3e10) no es singular")
+        void hilbert8NoEsSingular() {
+            assertFalse(new Matriz(hilbert(8)).esSingular());
+        }
+
+        @Test
+        @DisplayName("Hilbert 12 (cond ~ 4e16 > 1/ε) es numéricamente singular")
+        void hilbert12EsSingular() {
+            assertTrue(new Matriz(hilbert(12)).esSingular());
+        }
+
+        @Test
+        @DisplayName("Singulares exactas, también escaladas, y la matriz nula")
+        void singulares() {
+            assertTrue(new Matriz(new double[][]{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}).esSingular());
+            assertTrue(new Matriz(escalar(SINGULAR_2X2, 1e-20)).esSingular());
+            assertTrue(new Matriz(new double[][]{{0, 0}, {0, 0}}).esSingular());
+        }
+
+        @Test
+        @DisplayName("Una no cuadrada se rechaza")
+        void noCuadrada() {
+            assertMensajeDeError(assertThrows(UnsupportedOperationException.class, () -> new Matriz(AMPLIADA_2X3).esSingular()));
+        }
+
+        @Test
+        @DisplayName("La inversa de una matriz diminuta (1e-20 * I) es 1e20 * I")
+        void inversaDiminuta() {
+            matrizCercana(identidad(3, 1e20), new Matriz(identidad(3, 1e-20)).inversa(), 1e20 * 1e-12);
+        }
+    }
+
+    @Nested
+    @DisplayName("Valores no finitos")
+    class ValoresNoFinitos {
+
+        private final double[][] conNaN = {{1, Double.NaN}, {3, 4}};
+
+        @Test
+        @DisplayName("contieneValoresValidos detecta NaN e Infinity")
+        void detecta() {
+            assertFalse(new Matriz(conNaN).contieneValoresValidos());
+            assertFalse(new Matriz(new double[][]{{1, Double.NEGATIVE_INFINITY}, {3, 4}}).contieneValoresValidos());
+            assertTrue(new Matriz(IDENTIDAD_3).contieneValoresValidos());
+        }
+
+        // Antes condicion() devolvía 0 con un NaN y bienCondicionado() daba true
+        @Test
+        @DisplayName("determinante, norma, inversa, condición y singularidad lanzan IllegalArgumentException")
+        void operacionesLanzan() {
+            Matriz A = new Matriz(conNaN);
+            assertMensajeDeError(assertThrows(IllegalArgumentException.class, A::determinante));
+            assertMensajeDeError(assertThrows(IllegalArgumentException.class, A::norma));
+            assertMensajeDeError(assertThrows(IllegalArgumentException.class, A::inversa));
+            assertMensajeDeError(assertThrows(IllegalArgumentException.class, A::condicion));
+            assertMensajeDeError(assertThrows(IllegalArgumentException.class, A::esSingular));
+            assertThrows(IllegalArgumentException.class, A::bienCondicionado);
+        }
+
+        @Test
+        @DisplayName("Una matriz con NaN no es simétrica")
+        void noEsSimetrica() {
+            assertFalse(new Matriz(new double[][]{{1, Double.NaN}, {Double.NaN, 1}}).esSimetrica());
         }
     }
 

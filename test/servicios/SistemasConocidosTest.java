@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static soporte.SistemasConocidos.ampliadaConSolucion;
 import static soporte.SistemasConocidos.diagonalDominante;
+import static soporte.SistemasConocidos.escalar;
 import static soporte.SistemasConocidos.inversaPoisson1D;
 import static soporte.SistemasConocidos.omegaOptimoPoisson1D;
 import static soporte.SistemasConocidos.poisson1D;
@@ -144,6 +145,54 @@ class SistemasConocidosTest {
 
     static Stream<Arguments> iterativosDiagonalDominante() {
         return combinar(new String[]{"Jacobi", "GaussSeidel", "SOR ω = 0.9", "Relajacion", "Mejoramiento"});
+    }
+
+    static Stream<Arguments> directosPorEscala() {
+        String[] metodos = Stream.concat(Stream.of(DIRECTOS_GENERALES), Stream.of("CholeskyL", "CholeskyU")).toArray(String[]::new);
+        return Stream.of(1e-20, 1e20).flatMap(alfa -> Stream.of(metodos).map(metodo -> Arguments.of(metodo, alfa)));
+    }
+
+    // det(αA) = α^n det(A): con n = 50 y α = 1e-20 el determinante da 0 por underflow. Los criterios de cero
+    // relativos a ||A|| no deben cambiar con la escala
+    @Nested
+    @DisplayName("Independencia de la escala (Poisson 1D de 50 x 50 escalada)")
+    class Escala {
+
+        @ParameterizedTest(name = "{0}, α = {1}")
+        @MethodSource("servicios.SistemasConocidosTest#directosPorEscala")
+        @DisplayName("Métodos directos sobre α * A")
+        void directos(String metodo, double alfa) {
+            int n = 50;
+            Matriz Ab = new Matriz(ampliadaConSolucion(escalar(poisson1D(n), alfa), solucion(n)));
+            vectorCercano(solucion(n), resolverDirecto(metodo, Ab), 1e-10);
+        }
+
+        @ParameterizedTest(name = "α = {0}")
+        @ValueSource(doubles = {1e-20, 1e20})
+        @DisplayName("Métodos iterativos sobre α * A")
+        void iterativos(double alfa) {
+            int n = 50;
+            double[][] Ab = ampliadaConSolucion(escalar(poisson1D(n), alfa), solucion(n));
+            vectorCercano(solucion(n), MetodosIterativosMatriz.SORSolucion(new Matriz(Ab), new double[n], omegaOptimoPoisson1D(n), 1e-12, 200000), 1e-8);
+            vectorCercano(solucion(n), MetodosIterativosMatriz.GaussSeidelSolucion(new Matriz(Ab), new double[n], 1e-12, 200000), 1e-8);
+            // Sin MejoramientoIterativo: corta con ||r|| <= tol absoluto y con α = 1e-20 ya el residuo inicial es menor
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @MethodSource("servicios.SistemasConocidosTest#directosConCholeskyN50")
+        @DisplayName("0.1 * I de 50 x 50 (det = 1e-50) se resuelve")
+        void identidadEscalada(String metodo) {
+            int n = 50;
+            double[][] A = new double[n][n];
+            for (int i = 0; i < n; i++) {
+                A[i][i] = 0.1;
+            }
+            vectorCercano(solucion(n), resolverDirecto(metodo, new Matriz(ampliadaConSolucion(A, solucion(n)))), 1e-12);
+        }
+    }
+
+    static Stream<String> directosConCholeskyN50() {
+        return Stream.concat(Stream.of(DIRECTOS_GENERALES), Stream.of("CholeskyL", "CholeskyU"));
     }
 
     @Nested

@@ -81,6 +81,30 @@ public final class SistemasConocidos {
         return A;
     }
 
+    // Hilbert: H[i][j] = 1 / (i + j + 1). cond(A) crece como e^(3.5 n): ~3e10 con n = 8 y ~4e16 con n = 12,
+    // donde ya supera 1/ε (Higham cap. 28)
+    public static double[][] hilbert(int n) {
+        double[][] H = new double[n][n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j < n; j++) {
+                H[i][j] = 1.0 / (i + j + 1);
+            }
+        }
+        return H;
+    }
+
+    // α * A
+    public static double[][] escalar(double[][] A, double alfa) {
+        double[][] resultado = new double[A.length][];
+        for (int i = 0; i < A.length; i++) {
+            resultado[i] = new double[A[i].length];
+            for (int j = 0; j < A[i].length; j++) {
+                resultado[i][j] = alfa * A[i][j];
+            }
+        }
+        return resultado;
+    }
+
     // Arma [A | A * x]
     public static double[][] ampliadaConSolucion(double[][] A, double[] x) {
         int n = A.length;
