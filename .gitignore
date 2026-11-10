@@ -1,6 +1,8 @@
 bin/
 out/
+lib/javafx/
 *.class
 .DS_Store
 .vscode/*
 !.vscode/settings.json
+!.vscode/launch.json

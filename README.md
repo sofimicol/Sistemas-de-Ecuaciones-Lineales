@@ -2,40 +2,23 @@
 
 ## Ejecutar la aplicación
 
-La interfaz usa JavaFX, que no viene incluido en el JDK y se descarga aparte. Sin Maven ni Gradle: alcanzan tres jars.
+Requiere un JDK 17 o superior (`java -version`). La interfaz usa JavaFX, que no viene en el JDK: los scripts lo descargan solos la primera vez en `lib/javafx` (ignorado por git), compilan y ejecutan.
 
-**1. Elegir la variante de JavaFX según la arquitectura del JDK** (no la de la máquina: un JDK para Intel corre emulado en una Mac con Apple Silicon y necesita la variante de Intel). Para ver la del JDK:
+| Sistema | Cómo ejecutar |
+|---|---|
+| Windows | doble clic en `ejecutar.cmd`, o `.\ejecutar.cmd` en una terminal abierta en la raíz del repo |
+| macOS / Linux | `./ejecutar.sh` |
 
-```bash
-java -XshowSettings:properties -version 2>&1 | grep os.arch
-```
+**Desde VS Code:** después de correr el script una vez (para que exista `lib/javafx`), elegir la configuración *AppGUI* en *Run and Debug* (F5). Está en `.vscode/launch.json`.
 
-| Sistema | `os.arch` del JDK | Variante |
-|---|---|---|
-| Windows | `amd64` | `win` |
-| Linux | `amd64` | `linux` |
-| macOS con JDK para Intel | `x86_64` | `mac` |
-| macOS con JDK para Apple Silicon | `aarch64` | `mac-aarch64` |
-
-**2. Descargar JavaFX 21** (una sola vez; reemplazar `VARIANTE` por la de la tabla). En macOS o Linux:
+**A mano** (los mismos comandos sirven en PowerShell, cmd, bash y zsh, con `lib/javafx` ya descargado):
 
 ```bash
-mkdir -p ~/javafx && cd ~/javafx
-for m in base graphics controls; do
-  curl -fLO https://repo1.maven.org/maven2/org/openjfx/javafx-$m/21.0.5/javafx-$m-21.0.5-VARIANTE.jar
-done
+javac -encoding UTF-8 --module-path lib/javafx --add-modules javafx.controls -sourcepath src -d out/app src/vista/AppGUI.java
+java --enable-native-access=javafx.graphics --module-path lib/javafx --add-modules javafx.controls -cp out/app vista.AppGUI
 ```
 
-En Windows se pueden descargar los mismos tres archivos desde el navegador y guardarlos en una carpeta, por ejemplo `C:\javafx`.
-
-**3. Compilar y ejecutar** (en la raíz del repo):
-
-```bash
-javac -encoding UTF-8 --module-path ~/javafx --add-modules javafx.controls -d out/app $(find src -name '*.java')
-java --enable-native-access=javafx.graphics --module-path ~/javafx --add-modules javafx.controls -cp out/app vista.AppGUI
-```
-
-`--enable-native-access` evita advertencias de los JDK recientes al cargar las librerías nativas de JavaFX. Si al ejecutar aparece `UnsatisfiedLinkError ... incompatible architecture`, la variante de JavaFX no coincide con la del JDK: volver al paso 1.
+La variante de JavaFX depende de la arquitectura del JDK, no de la máquina: un JDK para Intel corre emulado en una Mac con Apple Silicon y necesita la variante de Intel. `ejecutar.sh` lo detecta solo. Si aparece `UnsatisfiedLinkError ... incompatible architecture`, borrar `lib/javafx` y volver a correr el script.
 
 ## Tests
 
@@ -43,7 +26,7 @@ Los tests están en `test/` y usan JUnit 5 (`lib/junit-platform-console-standalo
 
 **Desde VS Code:** con el Extension Pack for Java instalado, abrir el panel *Testing* y ejecutar. La configuración está en `.vscode/settings.json`.
 
-**Desde la terminal** (en la raíz del repo):
+**Desde la terminal** (en la raíz del repo; en Windows, desde Git Bash, porque usa `find` de Unix):
 
 ```bash
 javac -encoding UTF-8 -d out/test -cp lib/junit-platform-console-standalone-1.13.4.jar \

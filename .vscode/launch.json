@@ -1,0 +1,12 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "AppGUI",
+            "request": "launch",
+            "mainClass": "vista.AppGUI",
+            "vmArgs": "--enable-native-access=javafx.graphics --module-path ${workspaceFolder}/lib/javafx --add-modules javafx.controls"
+        }
+    ]
+}
