@@ -496,19 +496,12 @@ public class AppGUI extends Application {
     }
 
     private void generarMatrizAleatoria() {
-        Random rand = new Random();
+        // Diagonal dominante con signos mixtos: los iterativos convergen en pocas iteraciones aun con n grande
+        Matriz aleatoria = Matriz.aleatoriaDiagonalDominante(n, new Random());
         for (int i = 0; i < n; i++) {
-            int sum = 0;
-            for (int j = 0; j < n; j++) {
-                if (i != j) {
-                    int val = rand.nextInt(5) + 1;
-                    casillas[i][j].setText(String.valueOf(val));
-                    sum += val;
-                }
+            for (int j = 0; j < n + 1; j++) {
+                casillas[i][j].setText(String.valueOf((long) aleatoria.getElemento(i, j)));
             }
-            int diag = sum + rand.nextInt(10) + 1;
-            casillas[i][i].setText(String.valueOf(diag));
-            casillas[i][n].setText(String.valueOf(rand.nextInt(21) - 10));
         }
         limpiarPantalla();
     }
@@ -805,7 +798,7 @@ public class AppGUI extends Application {
                 datosIngresados[i][j] = valor;
                 
                 // Verificamos si al menos UN elemento de los coeficientes es distinto de cero
-                if (j < n && Math.abs(valor) > 1e-12) {
+                if (j < n && valor != 0.0) {
                     esMatrizNula = false;
                 }
             }
@@ -969,6 +962,7 @@ public class AppGUI extends Application {
         double[][] sim = new double[nLocal][cols];
         for (int i = 0; i < nLocal; i++)
             for (int j = 0; j < cols; j++) sim[i][j] = original.getElemento(i, j);
+        double escala = original.normaCoeficientes(); // mismo criterio de cero que el servicio
 
         snapshots.add(copiar(sim));
         labels.add("Matriz ampliada inicial");
@@ -985,7 +979,7 @@ public class AppGUI extends Application {
             for (int i = k + 1; i < nLocal; i++) {
                 double va = Math.abs(sim[i][k]);
                 if ((tipoPivoteo == 1 && va > maxValor) ||
-                    (tipoPivoteo == 3 && maxValor < 1e-12 && va > 1e-12)) {
+                    (tipoPivoteo == 3 && Matriz.esCero(maxValor, escala, nLocal) && !Matriz.esCero(va, escala, nLocal))) {
                     maxValor = va;
                     filaMayor = i;
                 }
@@ -1013,7 +1007,7 @@ public class AppGUI extends Application {
                 pasosDoc.add(pp);
             }
 
-            if (Math.abs(sim[k][k]) > 1e-12) {
+            if (!Matriz.esCero(sim[k][k], escala, nLocal)) {
                 for (int i = k + 1; i < nLocal; i++) {
                     double m = sim[i][k] / sim[k][k];
                     double aAntes = sim[i][k];
@@ -1119,6 +1113,7 @@ public class AppGUI extends Application {
         double[][] sim = new double[nLocal][cols];
         for (int i = 0; i < nLocal; i++)
             for (int j = 0; j < cols; j++) sim[i][j] = original.getElemento(i, j);
+        double escala = original.normaCoeficientes(); // mismo criterio de cero que el servicio
 
         snapshots.add(copiar(sim));
         labels.add("Matriz ampliada inicial");
@@ -1176,7 +1171,7 @@ public class AppGUI extends Application {
                 pasosDoc.add(pp);
             }
 
-            if (Math.abs(sim[k][k]) > 1e-12) {
+            if (!Matriz.esCero(sim[k][k], escala, nLocal)) {
                 for (int i = k + 1; i < nLocal; i++) {
                     double m = sim[i][k] / sim[k][k];
                     double aAntes = sim[i][k];
@@ -1279,6 +1274,12 @@ public class AppGUI extends Application {
             int nLocal = matrizAmp.getCantFilas();
             int cols = nLocal + 1;
 
+            // La solución y las validaciones (valores finitos, singularidad) vienen del servicio
+            double[] sol = MetodosDirectosMatriz.JordanSolucionDiagonalUnitaria(matrizAmp, nLocal);
+
+            // Pasos con el mismo algoritmo que el servicio: pivoteo parcial solo si el pivote es nulo,
+            // normalización de la fila pivote y eliminación arriba y abajo
+            double escala = matrizAmp.normaCoeficientes();
             double[][] M = new double[nLocal][cols];
             for (int i = 0; i < nLocal; i++)
                 for (int j = 0; j < cols; j++)
@@ -1292,11 +1293,10 @@ public class AppGUI extends Application {
             pasos.add(p0);
 
             for (int k = 0; k < nLocal; k++) {
-                int piv = k;
-                for (int i = k + 1; i < nLocal; i++)
-                    if (Math.abs(M[i][k]) > Math.abs(M[piv][k])) piv = i;
-
-                if (piv != k) {
+                if (Matriz.esCero(M[k][k], escala, nLocal)) {
+                    int piv = k;
+                    for (int i = k + 1; i < nLocal; i++)
+                        if (Math.abs(M[i][k]) > Math.abs(M[piv][k])) piv = i;
                     double[] tmp = M[k]; M[k] = M[piv]; M[piv] = tmp;
                     PasoResolucion pp = new PasoResolucion(contador++, "Pivoteo parcial · Intercambio F" + (k+1) + " ↔ F" + (piv+1));
                     pp.formulas.add("Nuevo pivote: a[" + (k+1) + "][" + (k+1) + "] = " + fmt(M[k][k]));
@@ -1305,53 +1305,23 @@ public class AppGUI extends Application {
                     pasos.add(pp);
                 }
 
-                if (Math.abs(M[k][k]) < 1e-14) {
-                    mostrarError("Matriz singular", "El pivote en (" + (k+1) + "," + (k+1) + ") es cero.");
-                    mostrarPasosEnAcordeon(pasos);
-                    return;
-                }
+                double pivote = M[k][k];
+                for (int j = 0; j < cols; j++) M[k][j] /= pivote;
+                PasoResolucion pn = new PasoResolucion(contador++, "Normalización · F" + (k+1) + " ← F" + (k+1) + " / (" + fmt(pivote) + ")");
+                pn.matriz = copiar(M);
+                pn.filaResaltada = k; pn.colResaltada = k;
+                pasos.add(pn);
 
-                for (int i = k + 1; i < nLocal; i++) {
-                    if (Math.abs(M[i][k]) < 1e-14) continue;
-                    double m = M[i][k] / M[k][k];
-                    for (int j = k; j < cols; j++) M[i][j] -= m * M[k][j];
-
+                for (int i = 0; i < nLocal; i++) {
+                    if (i == k || M[i][k] == 0.0) continue;
+                    double m = M[i][k];
+                    for (int j = 0; j < cols; j++) M[i][j] -= m * M[k][j];
                     PasoResolucion pe = new PasoResolucion(contador++, "Eliminación · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
                     pe.matriz = copiar(M);
                     pe.filaResaltada = k; pe.colResaltada = k;
                     pasos.add(pe);
                 }
             }
-
-            for (int k = nLocal - 1; k >= 0; k--) {
-                double pivote = M[k][k];
-                if (Math.abs(pivote) < 1e-14) {
-                    mostrarError("Matriz singular", "El pivote en (" + (k+1) + "," + (k+1) + ") es cero.");
-                    mostrarPasosEnAcordeon(pasos);
-                    return;
-                }
-                double inv = 1.0 / pivote;
-                for (int j = 0; j < cols; j++) M[k][j] *= inv;
-
-                PasoResolucion pn = new PasoResolucion(contador++, "Normalización · F" + (k+1) + " ← F" + (k+1) + " / (" + fmt(pivote) + ")");
-                pn.matriz = copiar(M);
-                pn.filaResaltada = k; pn.colResaltada = k;
-                pasos.add(pn);
-
-                for (int i = k - 1; i >= 0; i--) {
-                    if (Math.abs(M[i][k]) < 1e-14) continue;
-                    double m = M[i][k];
-                    for (int j = 0; j < cols; j++) M[i][j] -= m * M[k][j];
-
-                    PasoResolucion pu = new PasoResolucion(contador++, "Eliminación hacia arriba · F" + (i+1) + " ← F" + (i+1) + " − (" + fmt(m) + ")·F" + (k+1));
-                    pu.matriz = copiar(M);
-                    pu.filaResaltada = k; pu.colResaltada = k;
-                    pasos.add(pu);
-                }
-            }
-
-            double[] sol = new double[nLocal];
-            for (int i = 0; i < nLocal; i++) sol[i] = M[i][cols - 1];
 
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < sol.length; i++) {
@@ -1562,8 +1532,10 @@ public class AppGUI extends Application {
 
             Matriz matrizAmp = leerMatrizDesdeInterfaz();
 
+            // Mismo criterio de cero que el servicio (relativo a la escala de A)
+            double escala = matrizAmp.normaCoeficientes();
             for (int i = 0; i < n; i++) {
-                if (Math.abs(matrizAmp.getElemento(i, i)) < 1e-12) {
+                if (Matriz.esCero(matrizAmp.getElemento(i, i), escala, n)) {
                     mostrarError("Error de Convergencia",
                         "El elemento a[" + (i + 1) + "][" + (i + 1) + "] es 0.\nLos métodos iterativos requieren que la diagonal no tenga ceros.");
                     return;
@@ -1571,17 +1543,33 @@ public class AppGUI extends Application {
             }
 
             double[] x0 = new double[n];
-            double[] solucion = new double[n];
+            List<PasoResolucion> pasos = new ArrayList<>();
+            final double[][] anterior = { x0.clone() };
+            final boolean esResiduo = (tipo == Iteracion.RELAJACION || tipo == Iteracion.MEJORAMIENTO);
+            final double tol = tolerancia;
+            MetodosIterativosMatriz.ObservadorIteracion observador = (k, x, error) -> {
+                PasoResolucion paso = new PasoResolucion(k, "Iteración " + k);
+                for (int i = 0; i < x.length; i++) {
+                    boolean cambio = x[i] != anterior[0][i];
+                    String marca = (tipo == Iteracion.RELAJACION && cambio) ? "   ← se corrige x" + (i + 1) : "";
+                    paso.formulas.add(String.format("x%d = %s%s", i + 1, fmt(x[i]), marca));
+                }
+                boolean cumple = esResiduo ? error <= tol : error < tol;
+                paso.notaAdicional = String.format("%s: %.2e %s", esResiduo ? "‖r‖∞" : "‖Δx‖∞", error, cumple ? "· CONVERGIÓ" : "");
+                pasos.add(paso);
+                anterior[0] = x;
+            };
 
+            MetodosIterativosMatriz.ResultadoIterativo res = null;
             switch (tipo) {
-                case JACOBI: solucion = MetodosIterativosMatriz.JacobiSolucion(matrizAmp, x0, tolerancia, maxIter); break;
-                case SEIDEL: solucion = MetodosIterativosMatriz.GaussSeidelSolucion(matrizAmp, x0, tolerancia, maxIter); break;
-                case SOR: solucion = MetodosIterativosMatriz.SORSolucion(matrizAmp, x0, omega, tolerancia, maxIter); break;
-                case RELAJACION: solucion = MetodosIterativosMatriz.Relajacion(matrizAmp, x0, tolerancia, maxIter); break;
-                case MEJORAMIENTO: solucion = MetodosIterativosMatriz.MejoramientoIterativo(matrizAmp, x0, tolerancia, maxIter); break;
+                case JACOBI: res = MetodosIterativosMatriz.JacobiResultado(matrizAmp, x0, tolerancia, maxIter, observador); break;
+                case SEIDEL: res = MetodosIterativosMatriz.GaussSeidelResultado(matrizAmp, x0, tolerancia, maxIter, observador); break;
+                case SOR: res = MetodosIterativosMatriz.SORResultado(matrizAmp, x0, omega, tolerancia, maxIter, observador); break;
+                case RELAJACION: res = MetodosIterativosMatriz.RelajacionResultado(matrizAmp, x0, tolerancia, maxIter, observador); break;
+                case MEJORAMIENTO: res = MetodosIterativosMatriz.MejoramientoIterativoResultado(matrizAmp, x0, tolerancia, maxIter, observador); break;
             }
 
-            for (double val : solucion) {
+            for (double val : res.x) {
                 if (Double.isNaN(val) || Double.isInfinite(val)) {
                     mostrarError("Error de Convergencia",
                         "El método divergió (NaN).\nVerifique que la matriz sea diagonalmente dominante.");
@@ -1589,69 +1577,18 @@ public class AppGUI extends Application {
                 }
             }
 
-            List<PasoResolucion> pasos = new ArrayList<>();
-            int iterCount = simularIteraciones(matrizAmp, x0, tolerancia, maxIter, omega, tipo, pasos);
-
-            mostrarExito(nombre + " (" + iterCount + " iter)", formatSolucion(solucion), true);
+            if (res.convergio) {
+                mostrarExito(nombre + " (" + res.iteraciones + " iter)", formatSolucion(res.x), true);
+            } else {
+                mostrarError("Sin convergencia",
+                    "El método no alcanzó la tolerancia en " + res.iteraciones + " iteraciones.\nÚltima aproximación: "
+                    + formatSolucion(res.x) + "\nPruebe con más iteraciones o verifique que la matriz sea diagonalmente dominante.");
+            }
             mostrarPasosEnAcordeon(pasos);
 
         } catch (Exception ex) {
             mostrarError("Error Matemático", ex.getMessage());
         }
-    }
-
-    private int simularIteraciones(Matriz matriz, double[] x0, double tol, int maxIter,
-                                   double omega, Iteracion tipo, List<PasoResolucion> pasos) {
-        int nLoc = matriz.getCantFilas();
-        double[] x = x0.clone();
-        int iter = 0;
-        boolean convergio = false;
-
-        while (iter < maxIter && !convergio) {
-            iter++;
-            double[] xNew = x.clone();
-            double maxDiff = 0;
-
-            PasoResolucion paso = new PasoResolucion(iter, "Iteración " + iter);
-            boolean usaNuevos = (tipo == Iteracion.SEIDEL || tipo == Iteracion.SOR
-                              || tipo == Iteracion.RELAJACION || tipo == Iteracion.MEJORAMIENTO);
-
-            for (int i = 0; i < nLoc; i++) {
-                double sumA = 0;
-                StringBuilder desglose = new StringBuilder();
-
-                for (int j = 0; j < nLoc; j++) {
-                    if (i == j) continue;
-                    double xj = usaNuevos ? xNew[j] : x[j];
-                    sumA += matriz.getElemento(i, j) * xj;
-                    if (desglose.length() > 0) desglose.append(" + ");
-                    desglose.append(fmt(matriz.getElemento(i, j))).append("·").append(fmt(xj));
-                }
-                if (desglose.length() == 0) desglose.append("0");
-
-                double b = matriz.getElemento(i, nLoc);
-                double aii = matriz.getElemento(i, i);
-                double valGauss = (b - sumA) / aii;
-                double val;
-
-                if (tipo == Iteracion.SOR) {
-                    val = (1 - omega) * x[i] + omega * valGauss;
-                    paso.formulas.add(String.format("x%d = %s", i + 1, fmt(val)));
-                } else {
-                    val = valGauss;
-                    paso.formulas.add(String.format("x%d = %s", i + 1, fmt(val)));
-                }
-
-                xNew[i] = val;
-                maxDiff = Math.max(maxDiff, Math.abs(xNew[i] - x[i]));
-            }
-
-            x = xNew.clone();
-            convergio = maxDiff < tol;
-            paso.notaAdicional = String.format("Error: %.2e %s", maxDiff, convergio ? "· CONVERGIÓ" : "");
-            pasos.add(paso);
-        }
-        return iter;
     }
 
     private void animarDobleMatriz(Matriz M1, Matriz M2, String nom1, String nom2,

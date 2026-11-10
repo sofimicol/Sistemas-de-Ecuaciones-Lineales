@@ -1,18 +1,23 @@
 package servicios;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static soporte.Verificar.ampliar;
 import static soporte.Verificar.errorInfinito;
 import static soporte.Verificar.vectorCercano;
 
+import java.util.ArrayList;
+import java.util.List;
 import modelo.Matriz;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import servicios.MetodosIterativosMatriz.ResultadoIterativo;
 
 class MetodosIterativosMatrizTest {
 
@@ -179,6 +184,89 @@ class MetodosIterativosMatrizTest {
         @DisplayName("SOR con ω = 0.5 (subrelajación) converge")
         void subrelajacion() {
             vectorCercano(X_BURDEN_73, MetodosIterativosMatriz.SORSolucion(new Matriz(BURDEN_73), new double[4], 0.5, 1e-10, 1000), 1e-8);
+        }
+    }
+
+    // Las versiones ...Resultado informan iteraciones y convergencia; son las que usa la interfaz
+    @Nested
+    @DisplayName("Resultado detallado (iteraciones y convergencia)")
+    class ResultadoDetallado {
+
+        @Test
+        @DisplayName("Cantidad de iteraciones de los ejemplos de Burden (IT1 a IT5)")
+        void iteracionesBurden() {
+            assertIteraciones(10, MetodosIterativosMatriz.JacobiResultado(new Matriz(BURDEN_73), new double[4], 1e-3, 1000, null));
+            assertIteraciones(5, MetodosIterativosMatriz.GaussSeidelResultado(new Matriz(BURDEN_73), new double[4], 1e-3, 1000, null));
+            assertIteraciones(15, MetodosIterativosMatriz.SORResultado(new Matriz(BURDEN_74), UNOS.clone(), 1.25, 1e-7, 1000, null));
+            assertIteraciones(32, MetodosIterativosMatriz.GaussSeidelResultado(new Matriz(BURDEN_74), UNOS.clone(), 1e-7, 1000, null));
+            assertIteraciones(17, MetodosIterativosMatriz.RelajacionResultado(new Matriz(BURDEN_73), new double[4], 1e-3, 1000, null));
+            assertIteraciones(1, MetodosIterativosMatriz.MejoramientoIterativoResultado(new Matriz(BURDEN_73), new double[4], 1e-10, 100, null));
+        }
+
+        private void assertIteraciones(int esperadas, ResultadoIterativo r) {
+            assertEquals(esperadas, r.iteraciones);
+            assertTrue(r.convergio);
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(strings = {"Jacobi", "GaussSeidel", "SOR", "Relajacion"})
+        @DisplayName("Sin alcanzar la tolerancia: convergio = false e iteraciones = máximo")
+        void noConverge(String metodo) {
+            ResultadoIterativo r = resolver(metodo, new Matriz(BURDEN_73), 1e-12, 3, null);
+            assertFalse(r.convergio);
+            assertEquals(3, r.iteraciones);
+        }
+
+        @Test
+        @DisplayName("Mejoramiento que converge justo en la última iteración permitida informa convergencia")
+        void mejoramientoConvergeEnElMaximo() {
+            // Antes avisaba "no convergió" en este caso, porque comparaba iteraciones con el máximo y no el residuo
+            ResultadoIterativo r = MetodosIterativosMatriz.MejoramientoIterativoResultado(new Matriz(BURDEN_73), new double[4], 1e-10, 1, null);
+            assertEquals(1, r.iteraciones);
+            assertTrue(r.convergio);
+        }
+
+        @Test
+        @DisplayName("Partiendo de la solución, Relajación no itera")
+        void relajacionYaConvergida() {
+            List<Integer> llamadas = new ArrayList<>();
+            ResultadoIterativo r = MetodosIterativosMatriz.RelajacionResultado(new Matriz(BURDEN_74), X_BURDEN_74.clone(), 1e-10, 100,
+                (k, x, error) -> llamadas.add(k));
+            assertEquals(0, r.iteraciones);
+            assertTrue(r.convergio);
+            assertTrue(llamadas.isEmpty());
+        }
+
+        @ParameterizedTest(name = "{0}")
+        @ValueSource(strings = {"Jacobi", "GaussSeidel", "SOR", "Relajacion", "Mejoramiento"})
+        @DisplayName("El observador recibe cada iteración y la última coincide con el resultado")
+        void observador(String metodo) {
+            List<Integer> ks = new ArrayList<>();
+            List<double[]> xs = new ArrayList<>();
+            List<Double> errores = new ArrayList<>();
+            ResultadoIterativo r = resolver(metodo, new Matriz(BURDEN_73), 1e-8, 10000, (k, x, error) -> {
+                ks.add(k);
+                xs.add(x);
+                errores.add(error);
+            });
+            assertEquals(r.iteraciones, ks.size());
+            for (int k = 0; k < ks.size(); k++) {
+                assertEquals(k + 1, ks.get(k));
+            }
+            assertArrayEquals(r.x, xs.get(xs.size() - 1));
+            assertTrue(errores.get(errores.size() - 1) <= 1e-8);
+            vectorCercano(X_BURDEN_73, r.x, 1e-6);
+        }
+
+        private ResultadoIterativo resolver(String metodo, Matriz Ab, double tol, int maxIter, MetodosIterativosMatriz.ObservadorIteracion obs) {
+            double[] x0 = new double[Ab.getCantFilas()];
+            switch (metodo) {
+                case "Jacobi": return MetodosIterativosMatriz.JacobiResultado(Ab, x0, tol, maxIter, obs);
+                case "GaussSeidel": return MetodosIterativosMatriz.GaussSeidelResultado(Ab, x0, tol, maxIter, obs);
+                case "SOR": return MetodosIterativosMatriz.SORResultado(Ab, x0, 1.1, tol, maxIter, obs);
+                case "Relajacion": return MetodosIterativosMatriz.RelajacionResultado(Ab, x0, tol, maxIter, obs);
+                default: return MetodosIterativosMatriz.MejoramientoIterativoResultado(Ab, x0, tol, maxIter, obs);
+            }
         }
     }
 

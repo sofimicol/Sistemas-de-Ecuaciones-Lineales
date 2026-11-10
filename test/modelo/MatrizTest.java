@@ -10,6 +10,7 @@ import static soporte.SistemasConocidos.escalar;
 import static soporte.SistemasConocidos.hilbert;
 import static soporte.SistemasConocidos.poisson1D;
 
+import java.util.Random;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -477,6 +478,54 @@ class MatrizTest {
         @DisplayName("Una matriz con NaN no es simétrica")
         void noEsSimetrica() {
             assertFalse(new Matriz(new double[][]{{1, Double.NaN}, {Double.NaN, 1}}).esSimetrica());
+        }
+    }
+
+    @Nested
+    @DisplayName("Matriz aleatoria diagonal dominante (llenado aleatorio de la interfaz)")
+    class AleatoriaDiagonalDominante {
+
+        @Test
+        @DisplayName("Es ampliada, estrictamente diagonal dominante y con enteros en los rangos pedidos")
+        void propiedades() {
+            for (int semilla = 0; semilla < 20; semilla++) {
+                for (int n : new int[]{2, 5, 30}) {
+                    Matriz Ab = Matriz.aleatoriaDiagonalDominante(n, new Random(semilla));
+                    assertEquals(n, Ab.getCantFilas());
+                    assertEquals(n + 1, Ab.getCantColumnas());
+                    for (int i = 0; i < n; i++) {
+                        double suma = 0;
+                        for (int j = 0; j < n; j++) {
+                            double v = Ab.getElemento(i, j);
+                            assertEquals(Math.rint(v), v, "valor entero");
+                            if (i != j) {
+                                assertTrue(v >= -5 && v <= 5);
+                                suma += Math.abs(v);
+                            }
+                        }
+                        assertTrue(Ab.getElemento(i, i) > suma, "estrictamente diagonal dominante en la fila " + i);
+                        assertTrue(Ab.getElemento(i, i) <= suma + 10);
+                        assertTrue(Math.abs(Ab.getElemento(i, n)) <= 10);
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("Tiene signos mixtos fuera de la diagonal")
+        void signosMixtos() {
+            Matriz Ab = Matriz.aleatoriaDiagonalDominante(10, new Random(1));
+            boolean hayNegativos = false;
+            boolean hayPositivos = false;
+            for (int i = 0; i < 10; i++) {
+                for (int j = 0; j < 10; j++) {
+                    if (i != j) {
+                        hayNegativos |= Ab.getElemento(i, j) < 0;
+                        hayPositivos |= Ab.getElemento(i, j) > 0;
+                    }
+                }
+            }
+            assertTrue(hayNegativos && hayPositivos);
         }
     }
 

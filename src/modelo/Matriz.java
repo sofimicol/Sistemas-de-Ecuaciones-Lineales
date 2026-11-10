@@ -1,5 +1,7 @@
 package modelo;
 
+import java.util.Random;
+
 public class Matriz {
     // Épsilon de la máquina para double: 2^-52 ≈ 2.2e-16
     public static final double EPSILON_MAQUINA = Math.ulp(1.0);
@@ -123,6 +125,26 @@ public class Matriz {
 	            I.datos[i][i] = 1.0;
 	        }
 	        return I;
+	    }
+
+	    // Ampliada [A | b] aleatoria con A estrictamente diagonal dominante: fuera de la diagonal enteros en [-5, 5]
+	    // (signos mixtos), a_ii = suma de |a_ij| + un entero en [1, 10] y b con enteros en [-10, 10].
+	    // Con signos mixtos Jacobi converge en pocas iteraciones aun para n grande
+	    public static Matriz aleatoriaDiagonalDominante(int n, Random azar) {
+	        Matriz Ab = new Matriz(n, n + 1);
+	        for (int i = 0; i < n; i++) {
+	            int sumaFila = 0;
+	            for (int j = 0; j < n; j++) {
+	                if (i != j) {
+	                    int valor = azar.nextInt(11) - 5;
+	                    Ab.datos[i][j] = valor;
+	                    sumaFila += Math.abs(valor);
+	                }
+	            }
+	            Ab.datos[i][i] = sumaFila + azar.nextInt(10) + 1;
+	            Ab.datos[i][n] = azar.nextInt(21) - 10;
+	        }
+	        return Ab;
 	    }
 
 	    public Matriz copiar() {

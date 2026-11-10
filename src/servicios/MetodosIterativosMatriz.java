@@ -6,8 +6,31 @@ import static modelo.Matriz.esCero;
 
 public class MetodosIterativosMatriz {
 
+    // Resultado completo de un método iterativo: la aproximación, cuántas iteraciones hizo y si cumplió la tolerancia
+    public static class ResultadoIterativo {
+        public final double[] x;
+        public final int iteraciones;
+        public final boolean convergio;
+
+        public ResultadoIterativo(double[] x, int iteraciones, boolean convergio) {
+            this.x = x;
+            this.iteraciones = iteraciones;
+            this.convergio = convergio;
+        }
+    }
+
+    // Se invoca al final de cada iteración con una copia de x y la medida del criterio de parada:
+    // ||x(k+1) - x(k)||inf en Jacobi, Gauss-Seidel y SOR; ||r||inf en Relajación y Mejoramiento
+    public interface ObservadorIteracion {
+        void iteracion(int k, double[] x, double error);
+    }
+
     // ==== Jacobi ====
     public static double[] JacobiSolucion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        return JacobiResultado(Ab, x0, tolerancia, maxIter, null).x;
+    }
+
+    public static ResultadoIterativo JacobiResultado(Matriz Ab, double[] x0, double tolerancia, int maxIter, ObservadorIteracion observador) {
         Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
@@ -31,21 +54,23 @@ public class MetodosIterativosMatriz {
                 }
                 x[i] = suma / A.getElemento(i, i);
             }
-            double[] dif = new double[n];
-            for (int i = 0; i < n; i++) {
-                dif[i] = x[i] - xAnt[i];
-            }
-            convergio = Matriz.normaInfinitoVector(dif) < tolerancia;
+            double error = diferencia(x, xAnt);
+            notificar(observador, iter, x, error);
+            convergio = error < tolerancia;
         } while (!convergio && iter < maxIter);
 
         if (!convergio) {
             System.out.println("Advertencia: Jacobi no convergió en " + maxIter + " iteraciones.");
         }
-        return x;
+        return new ResultadoIterativo(x, iter, convergio);
     }
 
     // ==== Gauss-Seidel ====
     public static double[] GaussSeidelSolucion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        return GaussSeidelResultado(Ab, x0, tolerancia, maxIter, null).x;
+    }
+
+    public static ResultadoIterativo GaussSeidelResultado(Matriz Ab, double[] x0, double tolerancia, int maxIter, ObservadorIteracion observador) {
         Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
@@ -70,21 +95,23 @@ public class MetodosIterativosMatriz {
                 }
                 x[i] = suma / A.getElemento(i, i);
             }
-            double[] dif = new double[n];
-            for (int i = 0; i < n; i++) {
-                dif[i] = x[i] - xAnt[i];
-            }
-            convergio = Matriz.normaInfinitoVector(dif) < tolerancia;
+            double error = diferencia(x, xAnt);
+            notificar(observador, iter, x, error);
+            convergio = error < tolerancia;
         } while (!convergio && iter < maxIter);
 
         if (!convergio) {
             System.out.println("Advertencia: Gauss-Seidel no convergió en " + maxIter + " iteraciones.");
         }
-        return x;
+        return new ResultadoIterativo(x, iter, convergio);
     }
 
     // ==== SOR ====
     public static double[] SORSolucion(Matriz Ab, double[] x0, double omega, double tolerancia, int maxIter) {
+        return SORResultado(Ab, x0, omega, tolerancia, maxIter, null).x;
+    }
+
+    public static ResultadoIterativo SORResultado(Matriz Ab, double[] x0, double omega, double tolerancia, int maxIter, ObservadorIteracion observador) {
         if (omega <= 0 || omega >= 2) {
             throw new IllegalArgumentException("Error: omega debe estar estrictamente en (0, 2).");
         }
@@ -113,21 +140,23 @@ public class MetodosIterativosMatriz {
                 double xGS = suma / A.getElemento(i, i);
                 x[i] = (1.0 - omega) * xAnt[i] + omega * xGS;
             }
-            double[] dif = new double[n];
-            for (int i = 0; i < n; i++) {
-                dif[i] = x[i] - xAnt[i];
-            }
-            convergio = Matriz.normaInfinitoVector(dif) < tolerancia;
+            double error = diferencia(x, xAnt);
+            notificar(observador, iter, x, error);
+            convergio = error < tolerancia;
         } while (!convergio && iter < maxIter);
 
         if (!convergio) {
             System.out.println("Advertencia: SOR (ω=" + omega + ") no convergió en " + maxIter + " iteraciones.");
         }
-        return x;
+        return new ResultadoIterativo(x, iter, convergio);
     }
 
  // ==== Southwell (Relajación optimizado en memoria) ====
     public static double[] Relajacion(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        return RelajacionResultado(Ab, x0, tolerancia, maxIter, null).x;
+    }
+
+    public static ResultadoIterativo RelajacionResultado(Matriz Ab, double[] x0, double tolerancia, int maxIter, ObservadorIteracion observador) {
         Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         verificarDiagonal(A);
@@ -137,7 +166,7 @@ public class MetodosIterativosMatriz {
         double[] x = x0.clone();
         double[] r = new double[n]; // Instanciamos en memoria UNA SOLA VEZ
         calcularResiduo(A, x, b, r);
-        
+
         int iter = 0;
         boolean convergio = Matriz.normaInfinitoVector(r) <= tolerancia;
 
@@ -152,19 +181,21 @@ public class MetodosIterativosMatriz {
                     m = i;
                 }
             }
-            
+
             // Actualizamos solo la incógnita con mayor residuo
             x[m] = x[m] + r[m] / A.getElemento(m, m);
-            
+
             // Reciclamos el arreglo 'r' sobreescribiendo sus valores
             calcularResiduo(A, x, b, r);
-            convergio = Matriz.normaInfinitoVector(r) <= tolerancia;
+            double error = Matriz.normaInfinitoVector(r);
+            notificar(observador, iter, x, error);
+            convergio = error <= tolerancia;
         }
 
         if (!convergio) {
             System.out.println("Advertencia: Relajación no convergió en " + maxIter + " iteraciones.");
         }
-        return x;
+        return new ResultadoIterativo(x, iter, convergio);
     }
 
  // ==== Residuo (Sin fugas de memoria) ====
@@ -178,21 +209,36 @@ public class MetodosIterativosMatriz {
             r[i] = b[i] - suma; // Se sobreescribe el espacio de memoria existente
         }
     }
-    
+
+    // ||x - xAnt||inf
+    private static double diferencia(double[] x, double[] xAnt) {
+        double max = 0.0;
+        for (int i = 0; i < x.length; i++) {
+            max = Math.max(max, Math.abs(x[i] - xAnt[i]));
+        }
+        return max;
+    }
+
+    private static void notificar(ObservadorIteracion observador, int k, double[] x, double error) {
+        if (observador != null) {
+            observador.iteracion(k, x.clone(), error);
+        }
+    }
+
     // ==== Chequeo Diagonal Dominante ====
     private static void verificarDiagonal(Matriz A) {
         int n = A.getCantFilas();
         double escala = A.normaCoeficientes();
         boolean esDominante = true;
-        
+
         for (int i = 0; i < n; i++) {
             double a_ii = Math.abs(A.getElemento(i, i));
-            
+
             // Chequeo informático vital: evitar división por cero
             if (esCero(a_ii, escala, n)) {
                 throw new ArithmeticException("Error: a_ii = 0 en la fila " + i + ". División por cero.");
             }
-            
+
             // Chequeo matemático: Diagonal Estrictamente Dominante
             double sumaFila = 0.0;
             for (int j = 0; j < n; j++) {
@@ -204,29 +250,33 @@ public class MetodosIterativosMatriz {
                 esDominante = false;
             }
         }
-        
+
         if (!esDominante) {
             System.out.println("ADVERTENCIA TEÓRICA: La matriz no es estrictamente diagonal dominante. La convergencia de Jacobi/Gauss-Seidel no está garantizada.");
         }
     }
-    
+
  // ==== Mejoramiento Iterativo ====
     public static double[] MejoramientoIterativo(Matriz Ab, double[] x0, double tolerancia, int maxIter) {
+        return MejoramientoIterativoResultado(Ab, x0, tolerancia, maxIter, null).x;
+    }
+
+    public static ResultadoIterativo MejoramientoIterativoResultado(Matriz Ab, double[] x0, double tolerancia, int maxIter, ObservadorIteracion observador) {
         Ab.validarValoresFinitos();
         Matriz A = Ab.extraerA();
         double[] b = Ab.extraerB();
         int n = A.getCantFilas();
-        
+
         double[] x = x0.clone();
         double[] r = new double[n];
-        
+
         // CORRECCIÓN: Usamos el método optimizado que no devuelve nada, sino que modifica 'r'
-        calcularResiduo(A, x, b, r); 
+        calcularResiduo(A, x, b, r);
         int iter = 0;
-        
+
         while (Matriz.normaInfinitoVector(r) > tolerancia && iter < maxIter) {
             iter++;
-            
+
             // Armamos la nueva matriz ampliada [A | r]
             Matriz Ar = new Matriz(n, n + 1);
             for (int i = 0; i < n; i++) {
@@ -235,22 +285,24 @@ public class MetodosIterativosMatriz {
                 }
                 Ar.setElemento(i, n, r[i]);
             }
-            
+
             // Resolvemos Az = r usando Gauss con Pivoteo Parcial (ubicado en MetodosDirectosMatriz)
             double[] z = MetodosDirectosMatriz.GaussPivoteoParcial(Ar);
-            
+
             // Sumamos el factor de corrección: x = x + z
             for (int i = 0; i < n; i++) {
                 x[i] = x[i] + z[i];
             }
-            
+
             // Recalculamos el residuo para la siguiente iteración reutilizando el arreglo 'r'
             calcularResiduo(A, x, b, r);
+            notificar(observador, iter, x, Matriz.normaInfinitoVector(r));
         }
-        
-        if (iter >= maxIter) {
+
+        boolean convergio = Matriz.normaInfinitoVector(r) <= tolerancia;
+        if (!convergio) {
             System.out.println("Advertencia: Mejoramiento Iterativo no convergió en " + maxIter + " iteraciones.");
         }
-        return x;
+        return new ResultadoIterativo(x, iter, convergio);
     }
 }
